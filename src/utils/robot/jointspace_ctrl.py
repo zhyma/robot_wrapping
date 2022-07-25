@@ -7,7 +7,8 @@ from math import pi
 from trac_ik_python.trac_ik import IK
 import rospy
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64,Header
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 import moveit_commander
 import moveit_msgs.msg
@@ -18,6 +19,7 @@ class joint_ctrl():
 
     def __init__(self, ctrl_group):
         self.ctrl_group = ctrl_group
+        self.trajectory_pub = rospy.Publisher('/yumi/joint_traj_pos_controller_l/command', JointTrajectory, queue_size=10)
 
     def robot_reset(self):
         self.robot_default_l()
@@ -69,6 +71,24 @@ class joint_ctrl():
         self.ctrl_group[1].set_joint_value_target(r_joints_val)
         self.ctrl_group[1].go(wait=True)
         self.ctrl_group[1].stop()
+
+    def pub_j_trajectory(self, group, value_list, dt, start_time=0):
+        joints_str = JointTrajectory()
+
+        joints_str.header = Header()
+        joints_str.header.stamp = rospy.Time.now()
+        if group == 0:
+            joints_str.joint_names = ['yumi_joint_1_l','yumi_joint_2_l','yumi_joint_7_l','yumi_joint_3_l','yumi_joint_4_l','yumi_joint_5_l','yumi_joint_6_l']
+        else:
+            joints_str.joint_names = ['yumi_joint_1_r','yumi_joint_2_r','yumi_joint_7_r','yumi_joint_3_r','yumi_joint_4_r','yumi_joint_5_r','yumi_joint_6_r']
+
+        for i in range(len(value_list)):
+            point = JointTrajectoryPoint()
+            point.positions = value_list[i]
+            point.time_from_start = rospy.Duration(start_time+dt*i)
+            joints_str.points.append(point)
+
+        self.trajectory_pub.publish(joints_str)
 
 
 if __name__ == '__main__':
