@@ -71,6 +71,14 @@ class move_yumi():
         self.ik_solver.append(IK("world", "yumi_link_6_l"))
         self.ik_solver.append(IK("world", "yumi_link_6_r"))
         self.j_ctrl = j_ctrl
+
+        lower_bound_l, upper_bound_l = self.ik_solver[0].get_joint_limits()
+        new_upper_bound_l = [i for i in upper_bound_l]
+        new_upper_bound_l[0] = 0
+        self.ik_solver[0].set_joint_limits(lower_bound_l, new_upper_bound_l)
+        _, upper_bound_l = self.ik_solver[0].get_joint_limits()
+        print("left arm upper_bound updated:", end='')
+        print(upper_bound_l)
         
 
         planning_frame = self.ctrl_group[0].get_planning_frame()
@@ -106,7 +114,6 @@ class move_yumi():
             # print("attached_objects: ", end=',')
             # print(attached_objects)
             # is_attached = len(attached_objects.keys()) > 0
-            print("test if added")
 
             is_known = floor_name in self.scene.get_known_object_names()
 

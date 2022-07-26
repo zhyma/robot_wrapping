@@ -41,6 +41,8 @@ def main():
     rate = rospy.Rate(10)
     rospy.sleep(1)
 
+    # rospy.set_param('/robot_description_planning/joint_limits/yumi_joint_1_l/max_position', 0)
+
     pg = path_generator()
     gripper = gripper_ctrl()
     # goal = marker()
@@ -60,26 +62,15 @@ def main():
     ## initialzing the yumi motion planner
     yumi = move_yumi(robot, scene, rate, ctrl_group, j_ctrl)
 
-    ##-------------------##
-    ## reset the robot
-    gripper.l_open()
-    gripper.r_open()
+    # ##-------------------##
+    # ## reset the robot
+    # gripper.l_open()
+    # gripper.r_open()
     j_ctrl.robot_default_l_low()
-    j_ctrl.robot_default_r_low()
+    # j_ctrl.robot_default_r_low()
 
-    # rospy.sleep(5)
-    # h5_6 = ws_tf.get_tf('yumi_link_5_l','yumi_link_6_l')
-    # h6_7 = ws_tf.get_tf('yumi_link_6_l','yumi_link_7_l')
-    # # print(h5_6)
-    # print(h6_7)
-    # # theta_5 = degrees(asin(-h5_6[0,1]))
-    # # alpha_5 = degrees(asin(-h5_6[1,2]))
-    # # theta_6 = degrees(asin(-h6_7[0,1]))
-    # # alpha_6 = degrees(asin(-h6_7[1,2]))
-    # # print('theta_5: {}, alpha_5: {}, theta_6: {}, alpha_6: {}'.format(theta_5, alpha_5, theta_6, alpha_6))
-
-    gripper.l_open()
-    gripper.r_open()
+    # gripper.l_open()
+    # gripper.r_open()
 
     rospy.sleep(3)
 
@@ -177,14 +168,12 @@ def main():
                              [0, 0, 1, -0.08],\
                              [0, 0, 0, 1]])
     start = transformation2pose(np.dot(ht_stop, start_offset))
-    # yumi.pose_with_restrict(0, start, j_start_value)
-    j_ctrl.robot_setjoint(0, yumi.ik_with_restrict(0, start, j_start_value))
+    # j_ctrl.robot_setjoint(0, yumi.ik_with_restrict(0, start, j_start_value))
     rospy.sleep(2)
-    # yumi.pose_with_restrict(0, stop, j_start_value)
     q_start = yumi.ik_with_restrict(0, stop, j_start_value)
     j_ctrl.robot_setjoint(0, q_start)
-    # ## grabbing the rope
-    gripper.l_close()
+    ## grabbing the rope
+    # gripper.l_close()
 
     rospy.sleep(2)
 
@@ -197,12 +186,12 @@ def main():
     last_j_angle = 0
     q0 = copy.deepcopy(q_start)
     for i in range(len(curve_path)-1):
-        print('q0 is: ', end='')
-        print(q0)
+        # print('q0 is: ', end='')
+        print(q0[0])
         last_j_angle = j_start_value - 2*pi/len(curve_path)*(i+1)
         qf = yumi.ik_with_restrict(0, curve_path[i+1], last_j_angle)
-        print('qf is: ', end='')
-        print(qf)
+        # print('qf is: ', end='')
+        # print(qf)
 
         j_traj.append(copy.deepcopy(q0))
 
