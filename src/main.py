@@ -64,13 +64,13 @@ def main():
 
     # ##-------------------##
     # ## reset the robot
-    # gripper.l_open()
-    # gripper.r_open()
+    gripper.l_open()
+    gripper.r_open()
     j_ctrl.robot_default_l_low()
-    # j_ctrl.robot_default_r_low()
+    j_ctrl.robot_default_r_low()
 
-    # gripper.l_open()
-    # gripper.r_open()
+    gripper.l_open()
+    gripper.r_open()
 
     rospy.sleep(3)
 
@@ -143,9 +143,9 @@ def main():
     ## Need time to initializing
     rospy.sleep(3)
 
-    # # key = input("Help me to put the cable on the rod! (q to quit)")
-    # # if key =='q':
-    # #     return
+    key = input("Help me to put the cable on the rod! (q to quit)")
+    if key =='q':
+        return
 
     ##-------------------##
     ## generate spiral here
@@ -160,7 +160,7 @@ def main():
     ## the arbitary value (but cannot be too arbitary) of the starting value of the last/wrist joint
     j_start_value = 2*pi-2.5
 
-    # ## from default position move to the rope starting point
+    ## from default position move to the rope starting point
     stop  = curve_path[0]
     ht_stop = pose2transformation(stop)
     start_offset = np.array([[1, 0, 0, 0],\
@@ -168,12 +168,17 @@ def main():
                              [0, 0, 1, -0.08],\
                              [0, 0, 0, 1]])
     start = transformation2pose(np.dot(ht_stop, start_offset))
-    # j_ctrl.robot_setjoint(0, yumi.ik_with_restrict(0, start, j_start_value))
+    print('move closer to the rod')
+    q_start0 = yumi.ik_with_restrict(0, start, j_start_value)
+    print(q_start0)
+    j_ctrl.robot_setjoint(0, q_start0)
     rospy.sleep(2)
-    q_start = yumi.ik_with_restrict(0, stop, j_start_value)
-    j_ctrl.robot_setjoint(0, q_start)
+    q_start1 = yumi.ik_with_restrict(0, stop, j_start_value)
+    print(q_start1)
+    print('reach out to the rope')
+    j_ctrl.robot_setjoint(0, q_start1)
     ## grabbing the rope
-    # gripper.l_close()
+    gripper.l_close()
 
     rospy.sleep(2)
 
@@ -181,12 +186,18 @@ def main():
     n_samples = 10
     t0 = 0
     tf = 2
-    # j_traj = np.zeros(((len(curve_path)-1)*n_samples, 7))
+    j_traj = []
+    last_j_angle = 0## wrapping
+    n_samples = 10
+    t0 = 0
+    tf = 2
     j_traj = []
     last_j_angle = 0
-    q0 = copy.deepcopy(q_start)
+    q0 = copy.deepcopy(q_start1)
+    # for i in range(len(curve_path)):
+    #     print(curve_path[i])
     for i in range(len(curve_path)-1):
-        # print('q0 is: ', end='')
+        # print('waypoint %d is: '%i, end='')
         print(q0[0])
         last_j_angle = j_start_value - 2*pi/len(curve_path)*(i+1)
         qf = yumi.ik_with_restrict(0, curve_path[i+1], last_j_angle)
@@ -199,34 +210,39 @@ def main():
         for cnt in range(n_samples):
             t = tf/n_samples*(cnt+1)
             q = [0]*7
+            # print('sample %d: '%cnt)
             ## for each joint
             for j in range(7):
                 a = quinticpoly(t0, tf, q0[j], qf[j], 0, 0, 0, 0)
+                # print(q, end='')
                 q[j] = a[0] + a[1]*t + a[2]*t**2 + a[3]*t**3 + a[4]*t**4 + a[5]*t**5
             
             j_traj.append(copy.deepcopy(q))
+            # print('')
 
         q0 = copy.deepcopy(qf)
 
+    print('send trajectory to actionlib')
     j_traj.append(copy.deepcopy(qf))
-    j_ctrl.pub_j_trajectory(0, j_traj, 0.2)
+    j_ctrl.exec(0, j_traj, 0.2)
 
-    # gripper.l_open()
+    gripper.l_open()
     # # gripper.r_open()
 
-    # start  = curve_path[-1]
-    # stop = copy.deepcopy(start)
-    # if stop.position.z > 0.1:
-    #     stop.position.z -= 0.08
-    # # yumi.pose_with_restrict(0, start, last_j_angle)
-    # j_ctrl.robot_setjoint(0, yumi.ik_with_restrict(0, start, last_j_angle))
-    # rospy.sleep(2)
-    # # yumi.pose_with_restrict(0, stop, last_j_angle)
-    # j_ctrl.robot_setjoint(0, yumi.ik_with_restrict(0, stop, last_j_angle))
-    # j_ctrl.robot_default_l_low()
+    start = curve_path[-1]
+    stop = copy.deepcopy(start)
+    if stop.position.z > 0.1:
+        stop.position.z -= 0.08
+    # yumi.pose_with_restrict(0, start, last_j_angle)
+    j_ctrl.robot_setjoint(0, yumi.ik_with_restrict(0, start, last_j_angle))
+    rospy.sleep(2)
+    # yumi.pose_with_restrict(0, stop, last_j_angle)
+    j_ctrl.robot_setjoint(0, yumi.ik_with_restrict(0, stop, last_j_angle))
+    j_ctrl.robot_default_l_low()
 
     # # gripper.l_open()
     # # gripper.r_open()
+    
 
 
 def test_with_files(path):

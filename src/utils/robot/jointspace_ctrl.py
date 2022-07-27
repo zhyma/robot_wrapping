@@ -14,12 +14,17 @@ import moveit_commander
 import moveit_msgs.msg
 from moveit_commander.conversions import pose_to_list
 
+import actionlib
+from control_msgs.msg import  FollowJointTrajectoryAction, FollowJointTrajectoryGoal
 
 class joint_ctrl():
 
     def __init__(self, ctrl_group):
         self.ctrl_group = ctrl_group
         self.trajectory_pub = rospy.Publisher('/yumi/joint_traj_pos_controller_l/command', JointTrajectory, queue_size=10)
+        self.client = actionlib.SimpleActionClient('/yumi/joint_traj_pos_controller_l/follow_joint_trajectory', FollowJointTrajectoryAction)
+
+        self.client.wait_for_server()
 
     def robot_reset(self):
         self.robot_default_l()
@@ -89,6 +94,22 @@ class joint_ctrl():
             joints_str.points.append(point)
 
         self.trajectory_pub.publish(joints_str)
+
+    def exec(self, group, value_list, dt, start_time=0):
+        goal =  FollowJointTrajectoryGoal()
+        goal.trajectory.joint_names = ['yumi_joint_1_l','yumi_joint_2_l','yumi_joint_7_l','yumi_joint_3_l','yumi_joint_4_l','yumi_joint_5_l','yumi_joint_6_l']
+
+        for i in range(len(value_list)):
+            point = JointTrajectoryPoint()
+            point.positions = value_list[i]
+            point.time_from_start = rospy.Duration(start_time+dt*i)
+
+            goal.trajectory.points.append(point)
+
+        self.client.send_goal(goal)
+        self.client.wait_for_result()
+
+        return self.client.get_result()
 
 
 if __name__ == '__main__':

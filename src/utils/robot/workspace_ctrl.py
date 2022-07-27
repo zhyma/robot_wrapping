@@ -147,6 +147,7 @@ class move_yumi():
       ik_sol = None
       while (ik_sol is None) and (cnt > 0):
         ik_sol = self.ik_solver[group].get_ik(seed_state[:6], x, y, z, qx, qy, qz, qw)
+        cnt -= 1
 
       return [i for i in ik_sol]+ [joint_7_value]
     
