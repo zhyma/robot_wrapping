@@ -25,6 +25,7 @@ def main():
     from utils.robot.path_generator  import path_generator
     from utils.robot.gripper_ctrl    import gripper_ctrl
     from utils.robot.quinticpoly     import quinticpoly
+    from utils.robot.interpolation   import interpolation
 
     from utils.workspace_tf          import workspace_tf, pose2transformation, transformation2pose
 
@@ -186,41 +187,20 @@ def main():
     n_samples = 10
     t0 = 0
     tf = 2
-    j_traj = []
+    q_knots = []
     last_j_angle = 0## wrapping
-    n_samples = 10
-    t0 = 0
-    tf = 2
-    j_traj = []
-    last_j_angle = 0
-    q0 = copy.deepcopy(q_start1)
+
     # for i in range(len(curve_path)):
     #     print(curve_path[i])
-    for i in range(len(curve_path)-1):
+    for i in range(len(curve_path)):
         # print('waypoint %d is: '%i, end='')
-        print(q0[0])
-        last_j_angle = j_start_value - 2*pi/len(curve_path)*(i+1)
-        qf = yumi.ik_with_restrict(0, curve_path[i+1], last_j_angle)
-        # print('qf is: ', end='')
-        # print(qf)
+        # print(q0[0])
+        last_j_angle = j_start_value - 2*pi/len(curve_path)*i
+        q = yumi.ik_with_restrict(0, curve_path[i], last_j_angle)
 
-        j_traj.append(copy.deepcopy(q0))
+        q_knots.append(copy.deepcopy(q))
 
-        ## apply quintic polynomial here
-        for cnt in range(n_samples):
-            t = tf/n_samples*(cnt+1)
-            q = [0]*7
-            # print('sample %d: '%cnt)
-            ## for each joint
-            for j in range(7):
-                a = quinticpoly(t0, tf, q0[j], qf[j], 0, 0, 0, 0)
-                # print(q, end='')
-                q[j] = a[0] + a[1]*t + a[2]*t**2 + a[3]*t**3 + a[4]*t**4 + a[5]*t**5
-            
-            j_traj.append(copy.deepcopy(q))
-            # print('')
-
-        q0 = copy.deepcopy(qf)
+    interpolated = interpolation(q_knots)
 
     print('send trajectory to actionlib')
     j_traj.append(copy.deepcopy(qf))
