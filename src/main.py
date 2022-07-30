@@ -185,8 +185,7 @@ def main():
 
     ## wrapping
     n_samples = 10
-    t0 = 0
-    tf = 2
+    dt = 2
     q_knots = []
     last_j_angle = 0## wrapping
 
@@ -200,10 +199,9 @@ def main():
 
         q_knots.append(copy.deepcopy(q))
 
-    interpolated = interpolation(q_knots)
+    j_traj = interpolation(q_knots, n_samples, dt)
 
     print('send trajectory to actionlib')
-    j_traj.append(copy.deepcopy(qf))
     j_ctrl.exec(0, j_traj, 0.2)
 
     gripper.l_open()
