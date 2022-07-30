@@ -32,13 +32,13 @@ def interpolation(points, n_samples, dt):
 
     qd.append([0]*7)
 
-
     ## calculate the coefficient a0, a1, a2, and a3
-    j_val = deepcopy(q[0])
+    j_val = deepcopy([q[0]])
     si = q[0]
     sdi = qd[0]
     for i in range(1, len(q)):
-        j_interval = [[0]*7]*n_samples
+        ## j_interval = [[0]*7]*n_samples # all [0]*7 are the same instance, change one will change all others
+        j_interval = [ [0]*7 for _ in range(n_samples)]
         gi = q[i]
         gdi = qd[i]
         for j in range(7):
@@ -60,8 +60,8 @@ def interpolation(points, n_samples, dt):
 
         j_val.append(q[i])
 
-        q0 = q[i]
-        qd0 = qd[i]
+        si = q[i]
+        sdi = qd[i]
 
     return j_val
 
@@ -81,10 +81,10 @@ if __name__ == '__main__':
 
 
     j_list = interpolation(jval_list, 10, 2)
+
     l = len(j_list)
     x = list(range(l))
 
-    print(len(j_list))
-
-    plt.plot(x, [i[0] for i in j_list])
+    for j in range(7):
+        plt.plot(x, [i[j] for i in j_list])
     plt.show()
