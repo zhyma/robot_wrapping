@@ -2,7 +2,7 @@
 <launch> 
 
   <!--realsense and ar tag part-->
-  <include file="$(find rs2pcl)/launch/realsense.launch">
+  <include file="$(find rs2pcl)/launch/front_camera.launch">
   </include>
 
   <include file="$(find rs2pcl)/launch/rws_online.launch">

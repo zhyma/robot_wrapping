@@ -110,14 +110,11 @@ def main():
 
     h = ws_tf.get_tf('camera_depth_frame', 'ar_marker_90')
     ws_distance = h[0,3]
-    print(ws_distance)
+    print("ar tag distance: %f"%ws_distance)
     img = copy.deepcopy(ic.cv_image)
     
     # rf.find_rod(rs.pcd, img, ws_distance)
-    rf.rod_transformation = np.array([[ 0.9935388,   0.10384128, -0.04579992,  0.60588046],\
-                                      [ 0.02949805,  0.15340868,  0.98772245,  0.00633545],\
-                                      [ 0.10959247, -0.98269159,  0.14935436,  0.04958995],\
-                                      [ 0.,          0.,          0.,          1.,       ]])
+
     rf.rod_l = 0.291540804700394
     rf.rod_r = 0.02086036592098056
 
@@ -129,6 +126,14 @@ def main():
     t_rod2cam = rf.rod_transformation
 
     t_rod_in_scene = np.dot(t_cam2world, t_rod2cam)
+
+    ## Overwrite rod's pose for test
+    t_rod_in_scene = np.array([[-0.98479743, -0.06750774,  0.16005225,  0.44197885],\
+                               [-0.15012837, -0.13272416, -0.97971719, -0.08674831],\
+                               [ 0.0873813,  -0.98885135,  0.12057159,  0.35553301],\
+                               [ 0.,          0.,          0.,          1.        ]])
+
+
     t_rod2world = np.dot(t_rod_in_scene, t_rod_correction)
 
     ## apply correction matrix, because of the default cylinder orientation

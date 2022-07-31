@@ -38,6 +38,7 @@ class rod_finder():
         self.min_points = min_points
         ## only pick those relatively larger cluster (including the rod)
         self.min_cluster_size = min_cluster_size
+        self.rod_transformation = np.eye(4)
 
     def create_cylinder_template(self, r=20/1000.0, l=200/1000.0):
         ## create a rod template here
