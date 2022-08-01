@@ -23,10 +23,10 @@ class rs2o3d():
         self.is_k_empty = True
         self.is_data_updated = False
         self.k = [0]*9 # camera's intrinsic parameters
-        self.cam_sub = rospy.Subscriber("/camera/depth/camera_info", CameraInfo, self.cam_info_callback)
+        self.cam_sub = rospy.Subscriber("/front_cam/depth/camera_info", CameraInfo, self.cam_info_callback)
         # self.img_sub = rospy.Subscriber("/camera/depth/image_rect_raw", Image, self.img_callback)
         ## need parameter `align_depth:=true`
-        self.img_sub = rospy.Subscriber("/camera/aligned_depth_to_color/image_raw", Image, self.img_callback)
+        self.img_sub = rospy.Subscriber("/front_cam/aligned_depth_to_color/image_raw", Image, self.img_callback)
         self.pcd = o3d.geometry.PointCloud()
 
         self.height = -1

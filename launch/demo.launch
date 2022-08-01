@@ -1,8 +1,12 @@
 <?xml version="1.0"?>
 <launch> 
 
-  <!--realsense and ar tag part-->
-  <include file="$(find rs2pcl)/launch/front_camera.launch">
+  <!--front realsense and ar tag part-->
+  <include file="$(find rs2pcl)/launch/front_cam.launch">
+  </include>
+
+  <!--side realsense-->
+  <include file="$(find rs2pcl)/launch/side_cam.launch">
   </include>
 
   <include file="$(find rs2pcl)/launch/rws_online.launch">

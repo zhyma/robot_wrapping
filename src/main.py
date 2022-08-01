@@ -63,6 +63,8 @@ def main():
     ## initialzing the yumi motion planner
     yumi = move_yumi(robot, scene, rate, ctrl_group, j_ctrl)
 
+    print('reset the robot pose')
+
     # ##-------------------##
     # ## reset the robot
     gripper.l_open()
@@ -74,6 +76,7 @@ def main():
     gripper.r_open()
 
     rospy.sleep(3)
+    print('reset done')
 
     # print(ctrl_group[0].get_current_joint_values())
     # print(robot.get_current_state())
@@ -87,6 +90,7 @@ def main():
 
     ## There is depth data in the RS's buffer
     while rs.is_data_updated==False:
+        print('waiting for depth data')
         rate.sleep()
 
     print("depth_data_ready")
@@ -97,9 +101,9 @@ def main():
                            [1, 0, 0, 0],\
                            [0, 1, 0, 0.07],\
                            [0, 0, 0, 1]])
-    t_cam2ar = ws_tf.get_tf('ar_marker_90','camera_link')
+    t_cam2ar = ws_tf.get_tf('ar_marker_90','front_cam_link')
     t_cam2world = np.dot(t_ar2world,t_cam2ar)
-    ws_tf.set_tf("world", "camera_link", t_cam2world)
+    ws_tf.set_tf("world", "front_cam_link", t_cam2world)
 
 
     ## There is RGB data in the RS's buffer (ic: image converter)
@@ -108,7 +112,7 @@ def main():
 
     print("rgb_data_ready")
 
-    h = ws_tf.get_tf('camera_depth_frame', 'ar_marker_90')
+    h = ws_tf.get_tf('front_cam_depth_frame', 'ar_marker_90')
     ws_distance = h[0,3]
     print("ar tag distance: %f"%ws_distance)
     img = copy.deepcopy(ic.cv_image)
@@ -223,11 +227,9 @@ def main():
     j_ctrl.robot_setjoint(0, yumi.ik_with_restrict(0, stop, last_j_angle))
     j_ctrl.robot_default_l_low()
 
-    # # gripper.l_open()
-    # # gripper.r_open()
+    # gripper.l_open()
+    # gripper.r_open()
     
-
-
 def test_with_files(path):
     img = cv2.imread("./"+ path +"/image.jpeg")
     # cv2.imshow('image',img)

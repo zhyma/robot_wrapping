@@ -1,11 +1,13 @@
 <?xml version="1.0"?>
 <launch>
   <include file="$(find realsense2_camera)/launch/rs_camera.launch">
-    <arg name="align_depth" default="true" serial_no="851112063978"/>
+    <arg name="align_depth" default="true"/>
+    <arg name="camera" default="side_cam"/>
+    <arg name="serial_no" default="849412061719"/>
   </include>
 
 
-  <arg name="marker_size"          default="10" />
+<!--   <arg name="marker_size"          default="10" />
   <arg name="max_new_marker_error" default="0.08" />
   <arg name="max_track_error"      default="0.2" />
   
@@ -25,6 +27,6 @@
     <remap from="camera_image" to="$(arg camera_image_topic)" />
     <remap from="camera_info"  to="$(arg camera_info_topic)" />
   </node>
-
+ -->
   <!--<node name="rviz" pkg="rviz" type="rviz"/>-->
 </launch>
