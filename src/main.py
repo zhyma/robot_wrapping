@@ -1,5 +1,6 @@
 import sys
 import copy
+import pickle
 
 import numpy as np
 from math import pi#,sin,cos,asin,acos, degrees
@@ -24,8 +25,6 @@ from tf.transformations import quaternion_from_matrix, quaternion_matrix
 ## run `roslaunch rs2pcl demo.launch` first
 ## the default function
 def main():
-    
-
     # bc = tf.TransformBroadcaster()
 
     rospy.init_node('wrap_wrap', anonymous=True)
@@ -71,18 +70,23 @@ def main():
     # print(ctrl_group[0].get_current_joint_values())
     # print(robot.get_current_state())
 
-    ##-------------------##
-    ## Detect the rod in the first place
-    # pose_init.main(rod, ws_tf)
+    ## TODO: check code here
+    ## recover rod's information from the saved data
+    rod = rod_finder(scene, rate)
 
-    key = input("Help me to put the cable on the rod! (q to quit)")
-    if key =='q':
-        return
+    with open('rod_info.pickle', 'rb') as handle:
+        rod.info = pickle.load(handle)
+        print(rod.info.pose)
+
+    rod.add_to_scene()
+
+    ## get transform rod2world here
+    ...
 
     ##-------------------##
     ## generate spiral here
     step_size = 0.02
-    r = rod.rod_state.r
+    r = rod.info.r
     ## l is the parameter to be tuned
     l = 2*pi*r + 0.1
     curve_path = pg.generate_nusadua(t_rod2world, l, r, step_size)
@@ -151,22 +155,42 @@ def main():
 
     # gripper.l_open()
     # gripper.r_open()
+
+def init():
+    ## Initializing the environment:
+    ## find the rod, and save its' information (pose, r, l) to file
+
+    rospy.init_node('wrap_wrap', anonymous=True)
+    rate = rospy.Rate(10)
+    rospy.sleep(1)
+
+    ws_tf = workspace_tf(rate)
+    
+    moveit_commander.roscpp_initialize(sys.argv)
+    scene = moveit_commander.PlanningSceneInterface()
+    rod = rod_finder(scene, rate)
+    rod.find_rod(ws_tf)
+
+    with open('rod_info.pickle', 'wb') as handle:
+        pickle.dump(rod.info, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         if sys.argv[1] == 'init':
-            ## Initializing the environment:
-            ## find the rod, and save its' information (pose, r, l) to file
-
-            rospy.init_node('wrap_wrap', anonymous=True)
-            rate = rospy.Rate(10)
-            rospy.sleep(1)
-
-            ws_tf = workspace_tf(rate)
-            
-            moveit_commander.roscpp_initialize(sys.argv)
-            scene = moveit_commander.PlanningSceneInterface()
-            rod = rod_finder(scene, rate)
-            rod.find_rod(ws_tf)
+            ## get rod's information
+            init()
+        elif sys.argv[1] == 'reset':
+            ## reset robot pose (e.g., move the arms out of the camera to do the init)
+            ...
+        elif sys.argv[1] == 'rod_info':
+            with open('rod_info.pickle', 'rb') as handle:
+                rod_info = pickle.load(handle)
+                print(rod_info.pose)
+                print(rod_info.r)
+                print(rod_info.l)
+        else:
+            print("no such an argument")
     else:
+        ## check if rod_info.pickle exists.
+        ## start to plan
         main()

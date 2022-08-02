@@ -14,39 +14,42 @@ from utils.vision.rod_icp import rod_icp
 from utils.vision.rs2o3d import rs2o3d
 from utils.vision.rgb_camera import image_converter
 
-class rod_finder():
-
-    def __init__(self, scene, rate):
-        # You need to initializing a node before instantiate the class
-        self.scene = scene
+class rod_info():
+    def __init__(self):
         self.pose = Pose()
         self.l = 0.3
         self.r = 0.02
+
+class rod_finder():
+    def __init__(self, scene, rate):
+        # You need to initializing a node before instantiate the class
+        self.scene = scene
+        self.info = rod_info()
         self.rate = rate
 
     def set_info(self, mat, l, r):
         q = quaternion_from_matrix(mat)
         o = mat[:3,3]
-        self.pose.position.x = o[0]
-        self.pose.position.y = o[1]
-        self.pose.position.z = o[2]
-        self.pose.orientation.x = q[0]
-        self.pose.orientation.y = q[1]
-        self.pose.orientation.z = q[2]
-        self.pose.orientation.w = q[3]
-        self.l = l
-        self.r = r
+        self.info.pose.position.x = o[0]
+        self.info.pose.position.y = o[1]
+        self.info.pose.position.z = o[2]
+        self.info.pose.orientation.x = q[0]
+        self.info.pose.orientation.y = q[1]
+        self.info.pose.orientation.z = q[2]
+        self.info.pose.orientation.w = q[3]
+        self.info.l = l
+        self.info.r = r
 
     def add_to_scene(self):
         updated = False
         cylinder_pose = PoseStamped()
         cylinder_pose.header.frame_id = "world"
         # assign cylinder's pose
-        cylinder_pose.pose.position = copy.deepcopy(self.pose.position)
-        cylinder_pose.pose.orientation = copy.deepcopy(self.pose.orientation)
+        cylinder_pose.pose.position = copy.deepcopy(self.info.pose.position)
+        cylinder_pose.pose.orientation = copy.deepcopy(self.info.pose.orientation)
         cylinder_name = "cylinder"
         # add_cylinder(self, name, pose, height, radius)
-        self.scene.add_cylinder(cylinder_name, cylinder_pose, self.l, self.r)
+        self.scene.add_cylinder(cylinder_name, cylinder_pose, self.info.l, self.info.r)
 
         # ensuring collision updates are received
         start = rospy.get_time()
