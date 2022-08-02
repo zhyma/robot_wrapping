@@ -54,9 +54,9 @@ def step_back_l(pose, theta):
     s = sin(theta)
     ## homogeneous transformation matrix from link_6_l to link_7_l
     ht = np.array([[ c, -s, 0, 0.027],\
-                  [ 0,  0, 1, 0.029],\
-                  [-s, -c, 0, 0    ],\
-                  [ 0,  0, 0, 1    ]])
+                   [ 0,  0, 1, 0.029],\
+                   [-s, -c, 0, 0    ],\
+                   [ 0,  0, 0, 1    ]])
     inv_ht = np.linalg.inv(ht)
     t = pose2transformation(pose)
     return transformation2pose(np.dot(t, inv_ht))

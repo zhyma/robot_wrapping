@@ -2,19 +2,18 @@
 # Run this first: `roslaunch realsense2_camera rs_camera.launch`
 
 import sys
+sys.path.append('../../')
 import copy
 import time
 
 import numpy as np
 from math import sin, cos, pi
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN
 import matplotlib.pyplot as plt
 
+import cv2
 import open3d as o3d
 
-import cv2
-
-sys.path.append('../../')
 import utils.vision.non_convex_polygon as ncp
 
 def display_img(img):
@@ -145,11 +144,12 @@ class object_mask():
         ## dilation
         self.mask = cv2.dilate(self.mask, kernel, iterations=1)
         rect = ncp.largest_rect_in_non_convex_poly(self.mask, thumbnail_size=100)
+
         # print(rect)
         # box = cv2.boxPoints(rect)
         # box = np.int0(box)
         # res = cv2.cvtColor(self.mask, cv2.COLOR_GRAY2BGR)
-        # cv2.drawContours(res,[box],0,(0,0,255),1)
+        # cv2.drawContours(res,[box],0,(0,0,255),2)
         # display_img(res)
 
         return rect

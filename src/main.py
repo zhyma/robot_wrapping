@@ -2,41 +2,31 @@ import sys
 import copy
 
 import numpy as np
-from math import pi,sin,cos,asin,acos, degrees
+from math import pi#,sin,cos,asin,acos, degrees
 
-from utils.vision.rod_finder import rod_finder
+import rospy
 
-import open3d as o3d
-import cv2
+import moveit_commander
+from utils.workspace_tf          import workspace_tf, pose2transformation, transformation2pose
+from utils.robot.rod_finder import rod_finder
+# from utility.detect_cable    import cable_detection
+from utils.robot.workspace_ctrl  import move_yumi
+from utils.robot.jointspace_ctrl import joint_ctrl
+from utils.robot.path_generator  import path_generator
+from utils.robot.gripper_ctrl    import gripper_ctrl
+from utils.robot.interpolation   import interpolation
 
-## run `roslaunch rs2pcl ar_bc_test.launch` first
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
+
+# import tf
+from tf.transformations import quaternion_from_matrix, quaternion_matrix
+
+## run `roslaunch rs2pcl demo.launch` first
 ## the default function
 def main():
-    import rospy
-    from utils.vision.rs2o3d import rs2o3d
-    # from utils.vision.workspace_tf import workspace_tf
-    from utils.vision.rgb_camera import image_converter
+    
 
-    import moveit_commander
-    from utils.robot.rod_info        import rod_info
-    # from utility.detect_cable    import cable_detection
-    from utils.robot.workspace_ctrl  import move_yumi
-    from utils.robot.jointspace_ctrl import joint_ctrl
-    from utils.robot.path_generator  import path_generator
-    from utils.robot.gripper_ctrl    import gripper_ctrl
-    from utils.robot.quinticpoly     import quinticpoly
-    from utils.robot.interpolation   import interpolation
-
-    from utils.workspace_tf          import workspace_tf, pose2transformation, transformation2pose
-
-    from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
-    from transforms3d import euler
-    import moveit_msgs.msg
-
-    import tf
-    from tf.transformations import quaternion_from_matrix, quaternion_matrix
-
-    bc = tf.TransformBroadcaster()
+    # bc = tf.TransformBroadcaster()
 
     rospy.init_node('wrap_wrap', anonymous=True)
     rate = rospy.Rate(10)
@@ -83,75 +73,7 @@ def main():
 
     ##-------------------##
     ## Detect the rod in the first place
-    rs = rs2o3d()
-
-    rf = rod_finder()
-    ic = image_converter()
-
-    ## There is depth data in the RS's buffer
-    while rs.is_data_updated==False:
-        print('waiting for depth data')
-        rate.sleep()
-
-    print("depth_data_ready")
-
-
-    ## transformation of the AR tag to world
-    t_ar2world = np.array([[0, 0, 1, 0],\
-                           [1, 0, 0, 0],\
-                           [0, 1, 0, 0.07],\
-                           [0, 0, 0, 1]])
-    t_cam2ar = ws_tf.get_tf('ar_marker_90','front_cam_link')
-    t_cam2world = np.dot(t_ar2world,t_cam2ar)
-    ws_tf.set_tf("world", "front_cam_link", t_cam2world)
-
-
-    ## There is RGB data in the RS's buffer (ic: image converter)
-    while ic.has_data==False:
-        rate.sleep()
-
-    print("rgb_data_ready")
-
-    h = ws_tf.get_tf('front_cam_depth_frame', 'ar_marker_90')
-    ws_distance = h[0,3]
-    print("ar tag distance: %f"%ws_distance)
-    img = copy.deepcopy(ic.cv_image)
-    
-    # rf.find_rod(rs.pcd, img, ws_distance)
-
-    rf.rod_l = 0.291540804700394
-    rf.rod_r = 0.02086036592098056
-
-    t_rod_correction = np.array([[-1, 0, 0, 0],\
-                                 [0, 0, -1, 0],\
-                                 [0, -1, 0, 0],\
-                                 [0, 0, 0, 1]])
-    ## broadcasting the rod's tf
-    t_rod2cam = rf.rod_transformation
-
-    t_rod_in_scene = np.dot(t_cam2world, t_rod2cam)
-
-    ## Overwrite rod's pose for test
-    t_rod_in_scene = np.array([[-0.98479743, -0.06750774,  0.16005225,  0.44197885],\
-                               [-0.15012837, -0.13272416, -0.97971719, -0.08674831],\
-                               [ 0.0873813,  -0.98885135,  0.12057159,  0.35553301],\
-                               [ 0.,          0.,          0.,          1.        ]])
-
-
-    t_rod2world = np.dot(t_rod_in_scene, t_rod_correction)
-
-    ## apply correction matrix, because of the default cylinder orientation
-    ws_tf.set_tf('world', 'rod', t_rod2world)
-
-    ##-------------------##
-    ## rod found, start to do the first wrap
-
-    rod = rod_info(scene, rate)
-    rod.set_info(t_rod_in_scene, rf.rod_l, rf.rod_r)
-
-    rod.scene_add_rod()
-    ## Need time to initializing
-    rospy.sleep(3)
+    # pose_init.main(rod, ws_tf)
 
     key = input("Help me to put the cable on the rod! (q to quit)")
     if key =='q':
@@ -230,22 +152,21 @@ def main():
     # gripper.l_open()
     # gripper.r_open()
     
-def test_with_files(path):
-    img = cv2.imread("./"+ path +"/image.jpeg")
-    # cv2.imshow('image',img)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-    pcd = o3d.io.read_point_cloud("./"+ path +"/workspace.pcd")
-    # o3d.visualization.draw_geometries([pcd])
-    ws_distance = 850/1000.0
-
-    rf = rod_finder()
-    rf.find_rod(pcd, img, ws_distance)
-    # load
-    ...
-
 if __name__ == '__main__':
     if len(sys.argv) > 1:
-        test_with_files(sys.argv[1])
+        if sys.argv[1] == 'init':
+            ## Initializing the environment:
+            ## find the rod, and save its' information (pose, r, l) to file
+
+            rospy.init_node('wrap_wrap', anonymous=True)
+            rate = rospy.Rate(10)
+            rospy.sleep(1)
+
+            ws_tf = workspace_tf(rate)
+            
+            moveit_commander.roscpp_initialize(sys.argv)
+            scene = moveit_commander.PlanningSceneInterface()
+            rod = rod_finder(scene, rate)
+            rod.find_rod(ws_tf)
     else:
         main()

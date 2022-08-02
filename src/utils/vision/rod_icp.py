@@ -1,19 +1,16 @@
-# Covert raw RealSense `/camera/depth/image_rect_raw` data to Open3D point cloud data
-# Run this first: `roslaunch realsense2_camera rs_camera.launch`
+## Use ICP to match a cylinder template to the captured point cloud data
 
 import sys
+sys.path.append('../../')
 import copy
-import time
 
 import numpy as np
 from math import sin, cos, pi, sqrt
 import matplotlib.pyplot as plt
 
+import cv2
 import open3d as o3d
 
-import cv2
-import sys
-sys.path.append('../../')
 from utils.vision.rgb_extract import object_mask
 
 def draw_registration_result(source, target, transformation, additional_pcd = []):
@@ -29,7 +26,7 @@ def draw_registration_result(source, target, transformation, additional_pcd = []
                                       zoom=0.7, front=[-0.85, 0.5, 0.12], 
                                       lookat=[0.67,0.22,0], up=[0,0,1])
 
-class rod_finder():
+class rod_icp():
     def __init__(self,downsample_size = 0.005, eps=0.05, min_points=10, min_cluster_size = 500):
         self.rod_template = o3d.geometry.PointCloud()
         self.downsample_size = downsample_size
@@ -39,6 +36,8 @@ class rod_finder():
         ## only pick those relatively larger cluster (including the rod)
         self.min_cluster_size = min_cluster_size
         self.rod_transformation = np.eye(4)
+        self.rod_l = 0.30
+        self.rod_r = 0.020
 
     def create_cylinder_template(self, r=20/1000.0, l=200/1000.0):
         ## create a rod template here
@@ -49,9 +48,6 @@ class rod_finder():
             for it in range(t_theta):
                 idx = il*t_theta+it
 
-                # obj_np_cloud[idx][2] = r*cos(it*pi/t_theta)
-                # obj_np_cloud[idx][0] = -r*sin(it*pi/t_theta)
-                # obj_np_cloud[idx][1] = il/1000.0 - l/2
                 obj_np_cloud[idx][1] = r*cos(it*pi/t_theta)
                 obj_np_cloud[idx][0] = r*sin(it*pi/t_theta)
                 obj_np_cloud[idx][2] = il/1000.0 - l/2
@@ -98,7 +94,7 @@ class rod_finder():
     def dist_3d(self, p1, p2):
         return sqrt((p1[0]-p2[0])**2+(p1[1]-p2[1])**2+(p1[2]-p2[2])**2)
 
-    def find_rod(self, raw_pcd, img, ws_distance, visualizing = False):
+    def find_rod(self, raw_pcd, img, ar_pos, visualizing = False):
         ## pcd is the raw point cloud data
         ## 1. based on the workspace distacne, 
         ## remove point cloud outside that distance
@@ -110,6 +106,7 @@ class rod_finder():
         ## ================
         ## 1. Remove points that beyond the robot
         self.raw_array = np.asarray(raw_pcd.points)
+        ## om: object mask
         self.om = object_mask(self.raw_array, img, mask_color=(255,255,255))
         # print(raw_array.shape)
 
@@ -120,8 +117,9 @@ class rod_finder():
         ws_array = []
         ws_color = []
         for i in range(self.raw_array.shape[0]):
-            ## x is the depth direction in RealSense coordiante
-            if self.raw_array[i][0] < ws_distance:
+            ## x(ar_pos[0]) is the depth direction in RealSense coordiante
+            ##
+            if (self.raw_array[i][0] < ar_pos[0]) and (self.raw_array[i][2] > ar_pos[2]):
                 ws_array.append([self.raw_array[i][0], self.raw_array[i][1], self.raw_array[i][2]])
                 if visualizing:
                     ws_color.append([color[i][2], color[i][1], color[i][0]])
@@ -143,11 +141,15 @@ class rod_finder():
             labels = np.array(ds_pcd.cluster_dbscan(eps=self.eps, min_points=self.min_points, print_progress=False))
 
         max_label = labels.max()
+
         # print(f"point cloud has {max_label + 1} clusters")
         # colors = plt.get_cmap("tab20")(labels / (max_label if max_label > 0 else 1))
         # colors[labels < 0] = 0
         # print(colors.shape)
-        #ds_pcd.colors = o3d.utility.Vector3dVector(colors[:, :3])
+        # ds_pcd.colors = o3d.utility.Vector3dVector(colors[:, :3])
+        # o3d.visualization.draw_geometries([ds_pcd], 
+        #                               zoom=0.7, front=[-0.85, 0.5, 0.12], 
+        #                               lookat=[0.67,0.22,0], up=[0,0,1])
 
         ## ===============
         ## 4. Select only the front most cluster as the rod/object
@@ -235,16 +237,20 @@ class rod_finder():
         ## 6. Create a cylinder template for ICP
         self.create_cylinder_template(r=r, l=d)
 
+        # o3d.visualization.draw_geometries([ds_pcd, self.rod_template], 
+        #                               zoom=0.7, front=[-0.85, 0.5, 0.12], 
+        #                               lookat=[0.67,0.22,0], up=[0,0,1])
+
         ## ===============
         ## 7. Apply ICP to register the rod's pose
         target = selected_pcd
         source = self.rod_template
         threshold = 0.02
         trans_init = np.asarray(
-                    [[1.0, 0, 0,  cluster_center[0]],
-                    [0, 1.0, 0,  cluster_center[1]],
-                    [0, 0,  1.0, cluster_center[2]],
-                    [0.0, 0.0, 0.0, 1.0]])
+                    [[-1, 0, 0, cluster_center[0]],
+                     [ 0, 0, 1, cluster_center[1]],
+                     [ 0, 1, 0, cluster_center[2]],
+                     [ 0, 0, 0, 1]])
 
         print("Apply point-to-point ICP")
         reg_p2p = o3d.pipelines.registration.registration_icp(source, target, threshold, trans_init,
