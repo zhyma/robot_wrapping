@@ -13,6 +13,7 @@ from tf.transformations import quaternion_from_matrix, quaternion_matrix
 from utils.vision.rod_icp import rod_icp
 from utils.vision.rs2o3d import rs2o3d
 from utils.vision.rgb_camera import image_converter
+from utils.workspace_tf          import workspace_tf, pose2transformation, transformation2pose
 
 class rod_info():
     def __init__(self):
@@ -21,11 +22,14 @@ class rod_info():
         self.r = 0.02
 
 class rod_finder():
-    def __init__(self, scene, rate):
+    def __init__(self, scene):
         # You need to initializing a node before instantiate the class
         self.scene = scene
         self.info = rod_info()
-        self.rate = rate
+        self.t_rod_correction = np.array([[1, 0, 0, 0],\
+                                          [0, 0, 1, 0],\
+                                          [0,-1, 0, 0],\
+                                          [0, 0, 0, 1]])
 
     def set_info(self, mat, l, r):
         q = quaternion_from_matrix(mat)
@@ -41,12 +45,16 @@ class rod_finder():
         self.info.r = r
 
     def add_to_scene(self):
-        updated = False
+        t_rod2world = pose2transformation(self.info.pose)
+        t_rod_in_scene = np.dot(t_rod2world, np.linalg.inv(self.t_rod_correction))
+        pose = transformation2pose(t_rod_in_scene)
+
+        # updated = False
         cylinder_pose = PoseStamped()
         cylinder_pose.header.frame_id = "world"
         # assign cylinder's pose
-        cylinder_pose.pose.position = copy.deepcopy(self.info.pose.position)
-        cylinder_pose.pose.orientation = copy.deepcopy(self.info.pose.orientation)
+        cylinder_pose.pose.position = copy.deepcopy(pose.position)
+        cylinder_pose.pose.orientation = copy.deepcopy(pose.orientation)
         cylinder_name = "cylinder"
         # add_cylinder(self, name, pose, height, radius)
         self.scene.add_cylinder(cylinder_name, cylinder_pose, self.info.l, self.info.r)
@@ -68,7 +76,7 @@ class rod_finder():
             if is_known:
                 return True
 
-            self.rate.sleep()
+            rospy.sleep(0.1)
             seconds = rospy.get_time()
                 
         return False
@@ -84,7 +92,7 @@ class rod_finder():
         ## There is depth data in the RS's buffer
         while rs.is_data_updated==False:
             print('waiting for depth data')
-            self.rate.sleep()
+            rospy.sleep(0.1)
 
         print("depth_data_ready")
 
@@ -101,7 +109,7 @@ class rod_finder():
         ## There is RGB data in the RS's buffer (ic: image converter)
         while ic.has_data==False:
             print('waiting for RGB data')
-            rate.sleep()
+            rospy.sleep(0.1)
 
         print("rgb_data_ready")
 
@@ -112,10 +120,7 @@ class rod_finder():
         
         ri.find_rod(rs.pcd, img, ar_pos, visualizing = False)
 
-        t_rod_correction = np.array([[1, 0, 0, 0],\
-                                     [0, 0, 1, 0],\
-                                     [0,-1, 0, 0],\
-                                     [0, 0, 0, 1]])
+        
         ## broadcasting the rod's tf
         t_rod2cam = ri.rod_transformation
 
@@ -128,14 +133,14 @@ class rod_finder():
         #                            [ 0.,          0.,          0.,          1.        ]])
 
 
-        t_rod2world = np.dot(t_rod_in_scene, t_rod_correction)
+        t_rod2world = np.dot(t_rod_in_scene, self.t_rod_correction)
 
         ## apply correction matrix, because of the default cylinder orientation
         ws_tf.set_tf('world', 'rod', t_rod2world)
 
         ##-------------------##
         ## rod found, now you can save rod info
-        self.set_info(t_rod_in_scene, ri.rod_l, ri.rod_r)
+        self.set_info(t_rod2world, ri.rod_l, ri.rod_r)
 
         self.add_to_scene()
         ## Need time to initializing
@@ -166,12 +171,11 @@ if __name__ == '__main__':
         from utils.workspace_tf   import workspace_tf, pose2transformation, transformation2pose
 
         rospy.init_node('wrap_wrap', anonymous=True)
-        rate = rospy.Rate(10)
         rospy.sleep(1)
 
-        ws_tf = workspace_tf(rate)
+        ws_tf = workspace_tf()
         
         moveit_commander.roscpp_initialize(sys.argv)
         scene = moveit_commander.PlanningSceneInterface()
-        rod = rod_finder(scene, rate)
+        rod = rod_finder(scene)
         rod.find_rod(ws_tf)

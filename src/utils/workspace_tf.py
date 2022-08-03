@@ -31,10 +31,10 @@ def transformation2pose(mat):
 ## workspace tf
 class workspace_tf:
 
-  def __init__(self, rate):
+  def __init__(self):
     self.listener = tf.TransformListener()
     self.caster = tf.TransformBroadcaster()
-    self.rate = rate
+    # self.rate = rate
     
 
   def get_tf(self, ref_frame, obj):
@@ -47,10 +47,11 @@ class workspace_tf:
         h[:3,3] = trans
         return h
       except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-        self.rate.sleep()
+        rospy.sleep(0.1)
 
 
   def set_tf(self, ref_frame, obj, h, delay=1):
+    ## h is the homogeneous transformation matrix
     updated = False
     q = quaternion_from_matrix(h)
     o = h[:3,3]
@@ -66,14 +67,14 @@ class workspace_tf:
 if __name__ == '__main__':
   rospy.init_node('tf_converter', anonymous=True)
   ws_tf = workspace_tf()
-  rate = rospy.Rate(3)
+  # rate = rospy.Rate(10)
   while not rospy.is_shutdown():
     ws_tf.get_tf()
     if ws_tf.tf_updated:
       print(ws_tf.trans)
       print(ws_tf.rot)
       print("====")
-      rate.sleep()
+      # rate.sleep()
     else:
       print("marker not found")
       print("====")

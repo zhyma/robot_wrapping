@@ -70,6 +70,8 @@ class move_yumi():
         self.ik_solver = []
         self.ik_solver.append(IK("world", "yumi_link_6_l"))
         self.ik_solver.append(IK("world", "yumi_link_6_r"))
+        # self.ik_solver.append(IK("world", "yumi_link_6_l", timeout=0.05, epsilon=0.005, solve_type='Distance'))
+        # self.ik_solver.append(IK("world", "yumi_link_6_r", timeout=0.05, epsilon=0.005, solve_type='Distance'))
         self.j_ctrl = j_ctrl
 
         lower_bound_l, upper_bound_l = self.ik_solver[0].get_joint_limits()
@@ -79,18 +81,6 @@ class move_yumi():
         _, upper_bound_l = self.ik_solver[0].get_joint_limits()
         print("left arm upper_bound updated:", end='')
         print(upper_bound_l)
-        
-
-        planning_frame = self.ctrl_group[0].get_planning_frame()
-        print("============ Reference frame: {0}".format(planning_frame))
-
-        # We can also print the name of the end-effector link for this group:
-        eef_link = self.ctrl_group[0].get_end_effector_link()
-        print("============ End effector: {0}".format(eef_link))
-
-        # We can get a list of all the groups in the robot:
-        group_names = self.robot.get_group_names()
-        print("============ Robot Groups:{0}".format(self.robot.get_group_names()))
 
         ## add floor to the planning scene
         updated = False
@@ -110,15 +100,8 @@ class move_yumi():
         seconds = rospy.get_time()
         timeout = 5
         while (seconds - start < timeout) and not rospy.is_shutdown():
-            # attached_objects = self.scene.get_attached_objects([cylinder_name])
-            # print("attached_objects: ", end=',')
-            # print(attached_objects)
-            # is_attached = len(attached_objects.keys()) > 0
-
             is_known = floor_name in self.scene.get_known_object_names()
 
-            # if (is_attached) and (is_known):
-            #    return True
             if is_known:
               print("floor added to the scene")
               return
@@ -126,31 +109,28 @@ class move_yumi():
             self.rate.sleep()
             seconds = rospy.get_time()
 
-        # # Sometimes for debugging it is useful to print the entire state of the
-        # # robot:
-        # print("============ Printing robot state")
-        # print(robot.get_current_state())
-        # print('')
-
     def ik_with_restrict(self, group, pose_goal, joint_7_value):
-      stepback_pose = step_back_l(pose_goal, joint_7_value)
+        stepback_pose = step_back_l(pose_goal, joint_7_value)
 
-      seed_state = self.ctrl_group[group].get_current_joint_values()
-      x = stepback_pose.position.x
-      y = stepback_pose.position.y
-      z = stepback_pose.position.z
-      qx = stepback_pose.orientation.x
-      qy = stepback_pose.orientation.y
-      qz = stepback_pose.orientation.z
-      qw = stepback_pose.orientation.w
-      # ik_sol = self.ik_solver[group].get_ik(seed_state[:6], x, y, z, qx, qy, qz, qw)
-      cnt = 10
-      ik_sol = None
-      while (ik_sol is None) and (cnt > 0):
-        ik_sol = self.ik_solver[group].get_ik(seed_state[:6], x, y, z, qx, qy, qz, qw)
-        cnt -= 1
+        seed_state = self.ctrl_group[group].get_current_joint_values()
+        x = stepback_pose.position.x
+        y = stepback_pose.position.y
+        z = stepback_pose.position.z
+        qx = stepback_pose.orientation.x
+        qy = stepback_pose.orientation.y
+        qz = stepback_pose.orientation.z
+        qw = stepback_pose.orientation.w
+        # ik_sol = self.ik_solver[group].get_ik(seed_state[:6], x, y, z, qx, qy, qz, qw)
+        cnt = 10
+        ik_sol = None
+        while (ik_sol is None) and (cnt > 0):
+            ik_sol = self.ik_solver[group].get_ik(seed_state[:6], x, y, z, qx, qy, qz, qw)
+            cnt -= 1
 
-      return [i for i in ik_sol]+ [joint_7_value]
+        if ik_sol == None:
+            return -1
+        else:
+            return [i for i in ik_sol]+ [joint_7_value]
     
     def goto_pose(self, group, pose_goal):
         ## BEGIN_SUB_TUTORIAL plan_to_pose
@@ -178,27 +158,10 @@ class move_yumi():
         return all_close(pose_goal, current_pose, 0.01)
 
     def plan_cartesian_traj(self, groups, side, path):
-        waypoints = []
-        # for wp in path:
-        #   pose = Pose()
-        #   pose.position.x = wp[0]
-        #   pose.position.y = wp[1]
-        #   pose.position.z = wp[2]
-
-        #   if side == 0:
-        #     # left
-        #     quat = euler.euler2quat(pi, 0, -pi/2, 'sxyz')
-        #   else:
-        #     # right
-        #     quat = euler.euler2quat(pi, 0, pi/2, 'sxyz')
-        #   pose.orientation.x = quat[0]
-        #   pose.orientation.y = quat[1]
-        #   pose.orientation.z = quat[2]
-        #   pose.orientation.w = quat[3]
-        #   waypoints.append(pose)
+        # path should be a list of Pose()
 
         (plan, fraction) = groups[side].compute_cartesian_path(
-                                        waypoints,   # waypoints to follow
+                                        path,   # waypoints to follow
                                         0.01,        # eef_step
                                         0.0)         # jump_threshold
 
