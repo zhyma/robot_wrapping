@@ -62,10 +62,10 @@ def step_back_l(pose, theta):
     return transformation2pose(np.dot(t, inv_ht))
 
 class move_yumi():
-    def __init__(self, robot, scene, rate, ctrl_group, j_ctrl):
+    def __init__(self, robot, scene, ctrl_group, j_ctrl):
         self.robot = robot
         self.scene = scene
-        self.rate = rate
+        # self.rate = rate
         self.ctrl_group = ctrl_group
         self.ik_solver = []
         self.ik_solver.append(IK("world", "yumi_link_6_l"))
@@ -106,7 +106,7 @@ class move_yumi():
               print("floor added to the scene")
               return
 
-            self.rate.sleep()
+            rospy.sleep(0.1)
             seconds = rospy.get_time()
 
     def ik_with_restrict(self, group, pose_goal, joint_7_value):

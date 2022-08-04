@@ -24,6 +24,26 @@ from tf.transformations import quaternion_from_matrix, quaternion_matrix
 
 ## run `roslaunch rs2pcl demo.launch` first
 
+def tf_with_offset(tf, offset):
+    rot = tf[:3, :3]
+    new_tf = copy.deepcopy(tf)
+    d_trans = np.dot(rot, np.array(offset))
+    for i in range(3):
+        new_tf[i, 3]+=d_trans[i]
+
+    return new_tf
+
+def pose_with_offset(pose, offset):
+    ## the offset is given based on the current pose's translation
+    tf = pose2transformation(pose)
+    new_tf = tf_with_offset(tf, offset)
+    new_pose = transformation2pose(new_tf)
+
+    ## make sure it won't go too low
+    if new_pose.position.z < 0.03:
+            new_pose.position.z = 0.03
+    return new_pose
+
 class robot_wrap():
     def __init__(self):
         self.gripper = gripper_ctrl()
@@ -39,15 +59,21 @@ class robot_wrap():
         self.ctrl_group.append(moveit_commander.MoveGroupCommander('left_arm'))
         self.ctrl_group.append(moveit_commander.MoveGroupCommander('right_arm'))
         self.j_ctrl = joint_ctrl(self.ctrl_group)
+        ## initialzing the yumi motion planner
+        self.yumi = move_yumi(self.robot, self.scene, self.ctrl_group, self.j_ctrl)
+        self.pg = path_generator()
+
+    def move_p2p(self, start, stop, j6_value):
+        ## move with j6 value fixed
+        q_start = self.yumi.ik_with_restrict(0, start, j6_value)
+        self.j_ctrl.robot_setjoint(0, q_start)
+        rospy.sleep(2)
+        q_stop = self.yumi.ik_with_restrict(0, stop, j6_value)
+        print('reach out to the rope')
+        self.j_ctrl.robot_setjoint(0, q_stop)
 
     def wrap(self):
-        rate = rospy.Rate(10)
-        pg = path_generator()
         self.reset()
-
-        ## initialzing the yumi motion planner
-        yumi = move_yumi(self.robot, self.scene, rate, self.ctrl_group, self.j_ctrl)
-
         ## recover rod's information from the saved data
         rod = rod_finder(self.scene)
 
@@ -64,13 +90,23 @@ class robot_wrap():
 
         ##-------------------##
         ## generate spiral here
+        center_t = copy.deepcopy(t_rod2world)
         step_size = 0.02
         r = rod.info.r
         ## l is the parameter to be tuned
         l = 2*pi*r + 0.1
-        curve_path = pg.generate_nusadua(t_rod2world, l, r, step_size)
 
-        pg.publish_waypoints(curve_path)
+        ## let's do a few rounds
+        for i in range(3):
+            self.step(center_t, r, l, step_size)
+            center_t = tf_with_offset(center_t, [0, step_size, 0])
+        
+        self.j_ctrl.robot_default_l_low()
+
+    def step(self, center_t, r, l, step_size):
+        curve_path = self.pg.generate_nusadua(center_t, l, r, step_size)
+
+        self.pg.publish_waypoints(curve_path)
 
         ## the arbitary value (but cannot be too arbitary) of the starting value of the last/wrist joint
         j_start_value = 2*pi-2.5
@@ -88,7 +124,7 @@ class robot_wrap():
             # print('waypoint %d is: '%i, end='')
             # print(q0[0])
             last_j_angle = j_start_value - 2*pi/len(curve_path)*i
-            q = yumi.ik_with_restrict(0, curve_path[i], last_j_angle)
+            q = self.yumi.ik_with_restrict(0, curve_path[i], last_j_angle)
             if q==-1:
                 ## no IK solution found
                 print("No IK solution is found")
@@ -101,42 +137,46 @@ class robot_wrap():
 
         ## from default position move to the rope starting point
         stop  = curve_path[0]
-        ht_stop = pose2transformation(stop)
-        start_offset = np.array([[1, 0, 0, 0],\
-                                 [0, 1, 0, 0],\
-                                 [0, 0, 1, -0.08],\
-                                 [0, 0, 0, 1]])
-        start = transformation2pose(np.dot(ht_stop, start_offset))
+        ## based on the frame of link_7 (not the frame of the rod)
+        ## z pointing toward right
+        start = pose_with_offset(stop, [0, 0, -0.08])
+
         print('move closer to the rod')
-        q_start0 = yumi.ik_with_restrict(0, start, j_start_value)
-        print(q_start0)
-        self.j_ctrl.robot_setjoint(0, q_start0)
-        rospy.sleep(2)
-        q_start1 = yumi.ik_with_restrict(0, stop, j_start_value)
-        print(q_start1)
-        print('reach out to the rope')
-        self.j_ctrl.robot_setjoint(0, q_start1)
+        # q_start0 = self.yumi.ik_with_restrict(0, start, j_start_value)
+        # self.j_ctrl.robot_setjoint(0, q_start0)
+        # rospy.sleep(2)
+        # q_start1 = self.yumi.ik_with_restrict(0, stop, j_start_value)
+        # print('reach out to the rope')
+        # self.j_ctrl.robot_setjoint(0, q_start1)
+        self.move_p2p(start, stop, j_start_value)
         ## grabbing the rope
         self.gripper.l_close()
 
         rospy.sleep(2)
 
-        print('send trajectory to actionlib')
+        # print('send trajectory to actionlib')
         self.j_ctrl.exec(0, j_traj, 0.2)
 
+        ## after release the rope, continue to move down (straighten out the rope)
         self.gripper.l_open()
 
         start = curve_path[-1]
-        stop = copy.deepcopy(start)
-        if stop.position.z > 0.1:
-            stop.position.z -= 0.08
-        self.j_ctrl.robot_setjoint(0, yumi.ik_with_restrict(0, start, last_j_angle))
-        rospy.sleep(2)
-        self.j_ctrl.robot_setjoint(0, yumi.ik_with_restrict(0, stop, last_j_angle))
-        self.j_ctrl.robot_default_l_low()
+        stop = pose_with_offset(start, [0, 0.08, 0])
 
-        # gripper.l_open()
-        # gripper.r_open()
+        # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, start, last_j_angle))
+        # rospy.sleep(2)
+        # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, stop, last_j_angle))
+        self.move_p2p(start, stop, last_j_angle)
+        rospy.sleep(2)
+
+        start = copy.deepcopy(stop)
+        stop  = pose_with_offset(start, [0, 0, -0.08])
+
+        # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, start, last_j_angle))
+        # rospy.sleep(2)
+        # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, stop, last_j_angle))
+        self.move_p2p(start, stop, last_j_angle)
+        rospy.sleep(2)
 
     def reset(self):
         ##-------------------##
@@ -176,7 +216,7 @@ if __name__ == '__main__':
             print(rod_info.l)
     else:
         rospy.init_node('wrap_wrap', anonymous=True)
-        rate = rospy.Rate(10)
+        # rate = rospy.Rate(10)
         rospy.sleep(1)
 
         if len(sys.argv) > 1 and sys.argv[1] == 'init':
