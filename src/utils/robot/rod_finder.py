@@ -20,6 +20,7 @@ class rod_info():
         self.pose = Pose()
         self.l = 0.3
         self.r = 0.02
+        self.box2d = np.zeros((4,2))
 
 class rod_finder():
     def __init__(self, scene):
@@ -119,7 +120,7 @@ class rod_finder():
         img = copy.deepcopy(ic.cv_image)
         
         ri.find_rod(rs.pcd, img, ar_pos, visualizing = False)
-
+        self.info.box2d = ri.box2d
         
         ## broadcasting the rod's tf
         t_rod2cam = ri.rod_transformation

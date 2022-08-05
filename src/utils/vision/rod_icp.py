@@ -38,6 +38,8 @@ class rod_icp():
         self.rod_transformation = np.eye(4)
         self.rod_l = 0.30
         self.rod_r = 0.020
+        self.box2d = []
+
 
     def create_cylinder_template(self, r=20/1000.0, l=200/1000.0):
         ## create a rod template here
@@ -201,8 +203,8 @@ class rod_icp():
 
         ## ================
         ## 5. Get the geometric information of the cluster
-        ## TODO: replace with OpenCV rectangle regconition to get a more accurate center.
 
+        ## apply point cloud bounding box
         self.om.apply_pc_mask()
         ## (center(x, y), (width, height), angle of rotation) = cv2.minAreaRect(points)
         rect = self.om.extract_rod()
@@ -211,10 +213,10 @@ class rod_icp():
 
         ## estimate the dimension of the rod
         ## get four corner points of the box
-        box = np.int0(cv2.boxPoints(rect))
+        self.box2d = np.int0(cv2.boxPoints(rect))
         p = []
-        for i in box:
-            p.append(self.find_corner(box, i, 10))
+        for i in self.box2d:
+            p.append(self.find_corner(self.box2d, i, 10))
         # p = self.find_corner(box, box[0], 10)
         l1 = self.dist_3d(p[0], p[1])
         l2 = self.dist_3d(p[1], p[2])
@@ -261,6 +263,8 @@ class rod_icp():
         print(reg_p2p.transformation)
         self.rod_l = d
         self.rod_r = r
+
+        cv2.imwrite('image.jpg', img)
 
         if visualizing == True:
             print("")

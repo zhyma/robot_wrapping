@@ -64,7 +64,7 @@ class robot_wrap():
         self.pg = path_generator()
 
     def move_p2p(self, start, stop, j6_value):
-        ## move with j6 value fixed
+        ## move from point to point with j6 value fixed
         q_start = self.yumi.ik_with_restrict(0, start, j6_value)
         self.j_ctrl.robot_setjoint(0, q_start)
         rospy.sleep(2)
@@ -208,12 +208,13 @@ def env_init():
         print("Rod's information has been saved to file.")
     
 if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] == 'rod_info':
+    if len(sys.argv) > 1 and sys.argv[1] == 'info':
         with open('rod_info.pickle', 'rb') as handle:
             rod_info = pickle.load(handle)
             print(rod_info.pose)
             print(rod_info.r)
             print(rod_info.l)
+            print(rod_info.box2d)
     else:
         rospy.init_node('wrap_wrap', anonymous=True)
         # rate = rospy.Rate(10)
