@@ -17,6 +17,7 @@ import sensor_msgs.msg
 import rospkg
 
 from ariadne_plus.srv import getSplines, getSplinesRequest, getSplinesResponse
+from scipy.interpolate import splev, splrep, splprep
 
 import sys
 sys.path.append('../')
@@ -133,23 +134,44 @@ def generateImage(img_np):
     msg.data = np.array(img).tobytes()
     return msg
 
-def apply_mask(img, corners):
+def apply_mask(img, mask_corners):
     ## extract feature_map from img by using the 2d bounding box
     height = img.shape[0]
     width = img.shape[1]
-    x1 = corners[0,0]
-    x2 = corners[1,0]
-    y1 = corners[0,1]
-    y2 = corners[2,1]
+    x1 = mask_corners[0,0]
+    x2 = mask_corners[1,0]
+    y1 = mask_corners[0,1]
+    y2 = mask_corners[2,1]
     feature_map = []
     masked_image = np.zeros((y2-y1, x2-x1, 3), dtype=np.uint8)
     for iy in range(height):
         for ix in range(width):
-            j = cv2.pointPolygonTest(corners, (ix,iy), False)
+            j = cv2.pointPolygonTest(mask_corners, (ix,iy), False)
             if j > 0:
                 masked_image[iy-y1, ix-x1] = img[iy, ix]
 
     return masked_image
+
+def eval_spline(tck, mask_corners, nn_size):
+    x1 = mask_corners[0,0]
+    x2 = mask_corners[1,0]
+    y1 = mask_corners[0,1]
+    y2 = mask_corners[2,1]
+
+    t = np.array(tck.t)
+    c = np.array([tck.cx,tck.cy])
+    k = int(tck.k)
+    tck = [t,c,k]
+    spline = splev(np.linspace(0,1,50), tck)
+
+    x = [i*(x2-x1)/nn_size[0]+x1 for i in spline[0]]
+    y = [i*(y2-y1)/nn_size[1]+y1 for i in spline[1]]
+    return [x,y]
+
+
+def draw_overlay(img, spline):
+
+    return overlayed
 
 if __name__ == '__main__': 
     with open('rod_info.pickle', 'rb') as handle:
@@ -157,10 +179,10 @@ if __name__ == '__main__':
             # print(rod_info.pose)
             # print(rod_info.r)
             # print(rod_info.l)
-            print(rod_info.box2d)
+            # print(rod_info.box2d)
 
     img = cv2.imread('image1.jpg')
-    # mask_corner= copy.deepcopy(rod_info.box2d)
+    # mask_corners= copy.deepcopy(rod_info.box2d)
     sort1 = rod_info.box2d[rod_info.box2d[:,1].argsort()]
     ## upper and lower boundry
     y1 = sort1[0,1]-10
@@ -170,15 +192,15 @@ if __name__ == '__main__':
     x1 = sort2[0,0]-10
     x2 = sort2[-1,0]+10
 
-    mask_corner= np.array([[x1,y1],[x2,y1],[x2,y2],[x1,y2]])
+    mask_corners= np.array([[x1,y1],[x2,y1],[x2,y2],[x1,y2]])
 
-    # mask_corner = copy.deepcopy(rod_info.box2d)
+    # mask_corners = copy.deepcopy(rod_info.box2d)
     # for i in range(4):
-    #     if mask_corner[i,1] == sorted_corner[2,1] or mask_corner[i,1] == sorted_corner[3,1]:
-    #         mask_corner[i,1] = height
+    #     if mask_corners[i,1] == sorted_corner[2,1] or mask_corners[i,1] == sorted_corner[3,1]:
+    #         mask_corners[i,1] = height
 
-    # print(mask_corner)
-    masked = apply_mask(img, mask_corner)
+    # print(mask_corners)
+    masked = apply_mask(img, mask_corners)
     # display_img(masked)
     ## apply mask to choose the workspace
 
@@ -202,8 +224,21 @@ if __name__ == '__main__':
         print("Service call failed: %s"%e)
 
     # print("get cable:")
-    print(resp1.tck)
-    cv_image = bridge.imgmsg_to_cv2(resp1.mask_image, desired_encoding='passthrough')
+    # print(resp1.tck)
+    # cv_image = bridge.imgmsg_to_cv2(resp1.mask_image, desired_encoding='passthrough')
+
+    ## img.shape[1]: x/width
+    ## img.shape[0]: y/height
+    spline0 = eval_spline(resp1.tck[0], mask_corners, (640,480))
+    spline1 = eval_spline(resp1.tck[1], mask_corners, (640,480))
+
+    plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    plt.plot(spline0[0], spline0[1], color='c', linewidth=2)
+    plt.plot(spline1[0], spline1[1], color='c', linewidth=2)
+    plt.show()
+
+
+    # spline = splev(np.linspace(0, 1, 100), tck)
     # cv_image = bridge.imgmsg_to_cv2(resp1.final_image, desired_encoding='passthrough')
-    display_img(cv_image)
+    # display_img(cv_image)
 
