@@ -28,9 +28,9 @@ class rs2pc():
         self.is_k_empty = True
         self.is_data_updated = False
         self.k = [0]*9 # camera's intrinsic parameters
-        self.cam_sub = rospy.Subscriber("/camera/depth/camera_info", CameraInfo, self.cam_info_callback)
+        self.cam_sub = rospy.Subscriber("/front_cam/depth/camera_info", CameraInfo, self.cam_info_callback)
         # self.img_sub = rospy.Subscriber("/camera/depth/image_rect_raw", Image, self.img_callback)
-        self.img_sub = rospy.Subscriber("/camera/aligned_depth_to_color/image_raw", Image, self.img_callback)
+        self.img_sub = rospy.Subscriber("/front_cam/aligned_depth_to_color/image_raw", Image, self.img_callback)
         self.pcd = o3d.geometry.PointCloud()
 
         self.pub = rospy.Publisher('/rs_point_cloud', PointCloud2, queue_size=1000)
@@ -92,7 +92,7 @@ def main():
     rospy.init_node('rs2icp', anonymous=True)
     rospy.sleep(1)
 
-    rospy.Subscriber("/camera/color/image_raw", Image, image_callback)
+    rospy.Subscriber("/front_cam/color/image_raw", Image, image_callback)
 
     rospy.sleep(3)
     while rs.is_data_updated==False:

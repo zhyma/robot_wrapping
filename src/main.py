@@ -208,30 +208,38 @@ def env_init():
         print("Rod's information has been saved to file.")
     
 if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] == 'info':
+    import argparse
+    parser = argparse.ArgumentParser(description='Robot winding the given rope around a given rod.')
+    parser.add_argument('-info', '--info', action='store_true', help='Read "rod_info.pickle", show the saved rod\'s information.')
+    parser.add_argument('-init', '--init', action='store_true', help='Use the Realsense to obtain the rod\'s information and save to a file.')
+    parser.add_argument('-reset', '--reset', action='store_true', help='reset the robot to its\' default position.')
+
+    args = parser.parse_args()
+
+    if args.info:
         with open('rod_info.pickle', 'rb') as handle:
             rod_info = pickle.load(handle)
             print(rod_info.pose)
             print(rod_info.r)
             print(rod_info.l)
             print(rod_info.box2d)
+
     else:
         rospy.init_node('wrap_wrap', anonymous=True)
         # rate = rospy.Rate(10)
         rospy.sleep(1)
 
-        if len(sys.argv) > 1 and sys.argv[1] == 'init':
+        if args.init:
             env_init()
             exit()
 
+        ## initializing the robot's motion control
         rw = robot_wrap()
 
-        if len(sys.argv) > 1:
-            if sys.argv[1] == 'reset':
-                ## reset robot pose (e.g., move the arms out of the camera to do the init)
-                rw.reset()
-            else:
-                print("no such an argument")
+        if args.reset:
+            ## reset robot pose (e.g., move the arms out of the camera to do the init)
+            rw.reset()
+
         else:
             ## check if rod_info.pickle exists.
             ## start to plan
