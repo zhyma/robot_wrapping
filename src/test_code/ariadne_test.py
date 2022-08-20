@@ -174,23 +174,7 @@ def apply_dl_mask(img, mask):
 
     return output
 
-
-if __name__ == '__main__': 
-    with open('rod_info.pickle', 'rb') as handle:
-            rod_info = pickle.load(handle)
-            # print(rod_info.pose)
-            # print(rod_info.r)
-            # print(rod_info.l)
-            # print(rod_info.box2d)
-
-    # img = cv2.imread('image1.jpg')
-    ic = image_converter()
-    rospy.init_node('ariadne_test', anonymous=True)
-    rospy.sleep(1)
-    while ic.has_data==False:
-            print('waiting for RGB data')
-            rospy.sleep(0.1)
-
+def main(box2d, ic, serial_number):
     img = copy.deepcopy(ic.cv_image)
 
     ## box2d:
@@ -260,18 +244,52 @@ if __name__ == '__main__':
             detected[1].append(spline0[1][i])
 
 
-    plt.subplot(221)
-    # plt.imshow(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
-    plt.imshow(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
+    # plt.rcParams['figure.figsize']=(12,10)
+    fig = plt.figure(figsize=(12,10))
+    ax0 = plt.subplot2grid((2,2),(0,0))
+    ax1 = plt.subplot2grid((2,2),(0,1))
+    ax2 = plt.subplot2grid((2,2),(1,0),colspan=2)
 
-    plt.subplot(222)
-    plt.imshow(cv2.cvtColor(dl_mask, cv2.COLOR_BGR2RGB))
+    ax0.imshow(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
+    ax1.imshow(cv2.cvtColor(dl_mask, cv2.COLOR_BGR2RGB))
 
-    plt.subplot(212)
-    plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    plt.plot(spline0[0], spline0[1], color='c', linewidth=2)
-    plt.plot(detected[0], detected[1], '--', color='b', linewidth=2)
-    plt.plot(spline1[0], spline1[1], color='g', linewidth=2)
+    ax2.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    ax2.plot(spline0[0], spline0[1], color='c', linewidth=2)
+    ax2.plot(detected[0], detected[1], '--', color='b', linewidth=2)
+    ax2.plot(spline1[0], spline1[1], color='g', linewidth=2)
 
-    plt.show()
+    # plt.subplot(221)
+    # # plt.imshow(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
+    # plt.imshow(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
 
+    # plt.subplot(222)
+    # plt.imshow(cv2.cvtColor(dl_mask, cv2.COLOR_BGR2RGB))
+
+    # plt.subplot(212)
+    # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    # plt.plot(spline0[0], spline0[1], color='c', linewidth=2)
+    # plt.plot(detected[0], detected[1], '--', color='b', linewidth=2)
+    # plt.plot(spline1[0], spline1[1], color='g', linewidth=2)
+
+    plt.tight_layout()
+    # plt.show()
+    plt.savefig(str(serial_number)+'.png')
+
+
+if __name__ == '__main__': 
+    with open('rod_info.pickle', 'rb') as handle:
+        rod_info = pickle.load(handle)
+
+    # img = cv2.imread('image1.jpg')
+    ic = image_converter()
+    rospy.init_node('ariadne_test', anonymous=True)
+    rospy.sleep(1)
+    while ic.has_data==False:
+            print('waiting for RGB data')
+            rospy.sleep(0.1)
+
+    serial_number = 0
+    # main(rod_info.box2d, ic, serial_number)
+    for i in range(30):
+        main(rod_info.box2d, ic, i)
+        input("test: "+str(i))
