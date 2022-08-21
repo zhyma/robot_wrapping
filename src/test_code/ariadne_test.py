@@ -170,9 +170,45 @@ def apply_dl_mask(img, mask):
         for ix in range(width):
             if resized_mask[iy,ix,0] > 100:
                 # print(resized_mask[iy,ix])
-                output[iy, ix] = [0, 0, 255]
+                output[iy, ix] = [255, 0, 0]
 
     return output
+
+def check_spline(spline, box2d, l):
+    ## No need to sort, I think
+    on_rod = False
+    cnt = 0
+    while cnt < len(spline[1]):
+        j = cv2.pointPolygonTest(rod_info.box2d, (spline[0][cnt],spline[1][cnt]), False)
+        if j > 0:
+            ## on rod detected
+            on_rod = True
+            break
+
+        cnt += 1
+
+    if on_rod:
+        while cnt < len(spline[1]):
+            j = cv2.pointPolygonTest(rod_info.box2d, (spline[0][cnt],spline[1][cnt]), False)
+            if j > 0:
+                cnt += 1
+            else:
+                ## starting from the 
+                break
+
+        acc_pixel_l = 0
+        while cnt < len(spline[1])-1:
+            acc_pixel_l += sqrt((spline[0][cnt]-spline[0][cnt+1])**2+(spline[1][cnt]-spline[1][cnt+1])**2)
+            if acc_pixel_l > l:
+                return (int(spline[0][cnt]), int(spline[1][cnt]))
+
+            cnt += 1
+
+        return None
+
+    else:
+        ## spline not starts from the rod, skip
+        return None
 
 def main(box2d, ic, serial_number):
     img = copy.deepcopy(ic.cv_image)
@@ -233,47 +269,42 @@ def main(box2d, ic, serial_number):
     ## img.shape[1]: x/width
     ## img.shape[0]: y/height
 
-    spline0 = eval_spline(resp1.tck[0], crop_corners, (640,480))
-    spline1 = eval_spline(resp1.tck[1], crop_corners, (640,480))
+    l = 0.1 ## expecting rope length, unit: meter
+    x3_p = rod_info.box2d[2][0]
+    x4_p = rod_info.box2d[3][0]
+    y3_p = rod_info.box2d[2][1]
+    y4_p = rod_info.box2d[3][1]
+    l_pixel = sqrt((x3_p-x4_p)**2+(y3_p-y4_p)**2)
+    scale = rod_info.l/l_pixel
+    print(l/scale)
+    checked = None
+    for i in range(len(resp1.tck)):
+        spline = eval_spline(resp1.tck[i], crop_corners, (640,480))
+        checked = check_spline(spline, rod_info.box2d, l/scale)
+        if checked is None:
+            continue
+        else:
+            break
 
-    detected = [[],[]]
-    for i in range(len(spline0[0])):
-        j = cv2.pointPolygonTest(rod_info.box2d, (spline0[0][i],spline0[1][i]), False)
-        if j <= 0:
-            detected[0].append(spline0[0][i])
-            detected[1].append(spline0[1][i])
+    if checked is None:
+        print("No possible rope end is found")
+    else:
+        # plt.rcParams['figure.figsize']=(12,10)
+        fig = plt.figure(figsize=(12,10))
+        ax0 = plt.subplot2grid((2,2),(0,0))
+        ax1 = plt.subplot2grid((2,2),(0,1))
+        ax2 = plt.subplot2grid((2,2),(1,0),colspan=2)
 
+        ax0.imshow(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
+        ax1.imshow(cv2.cvtColor(dl_mask, cv2.COLOR_BGR2RGB))
 
-    # plt.rcParams['figure.figsize']=(12,10)
-    fig = plt.figure(figsize=(12,10))
-    ax0 = plt.subplot2grid((2,2),(0,0))
-    ax1 = plt.subplot2grid((2,2),(0,1))
-    ax2 = plt.subplot2grid((2,2),(1,0),colspan=2)
+        ax2.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        ax2.plot(spline[0], spline[1], color='c', linewidth=2)
+        ax2.scatter(checked[0], checked[1], color='b', linewidth=5)
 
-    ax0.imshow(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
-    ax1.imshow(cv2.cvtColor(dl_mask, cv2.COLOR_BGR2RGB))
-
-    ax2.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    ax2.plot(spline0[0], spline0[1], color='c', linewidth=2)
-    ax2.plot(detected[0], detected[1], '--', color='b', linewidth=2)
-    ax2.plot(spline1[0], spline1[1], color='g', linewidth=2)
-
-    # plt.subplot(221)
-    # # plt.imshow(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
-    # plt.imshow(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
-
-    # plt.subplot(222)
-    # plt.imshow(cv2.cvtColor(dl_mask, cv2.COLOR_BGR2RGB))
-
-    # plt.subplot(212)
-    # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    # plt.plot(spline0[0], spline0[1], color='c', linewidth=2)
-    # plt.plot(detected[0], detected[1], '--', color='b', linewidth=2)
-    # plt.plot(spline1[0], spline1[1], color='g', linewidth=2)
-
-    plt.tight_layout()
-    # plt.show()
-    plt.savefig(str(serial_number)+'.png')
+        plt.tight_layout()
+        plt.show()
+        # plt.savefig(str(serial_number)+'.png')
 
 
 if __name__ == '__main__': 
@@ -289,7 +320,7 @@ if __name__ == '__main__':
             rospy.sleep(0.1)
 
     serial_number = 0
-    # main(rod_info.box2d, ic, serial_number)
-    for i in range(30):
-        main(rod_info.box2d, ic, i)
-        input("test: "+str(i))
+    main(rod_info.box2d, ic, serial_number)
+    # for i in range(30):
+    #     main(rod_info.box2d, ic, i)
+    #     input("test: "+str(i))
