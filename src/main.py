@@ -17,6 +17,9 @@ from utils.robot.path_generator  import path_generator
 from utils.robot.gripper_ctrl    import gripper_ctrl
 from utils.robot.interpolation   import interpolation
 
+from utils.vision.rgb_camera     import image_converter
+from utils.vision.rope_dnn        import gp_estimation
+
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 
 # import tf
@@ -44,7 +47,7 @@ def pose_with_offset(pose, offset):
             new_pose.position.z = 0.03
     return new_pose
 
-class robot_wrap():
+class robot_winding():
     def __init__(self):
         self.gripper = gripper_ctrl()
 
@@ -72,7 +75,16 @@ class robot_wrap():
         print('reach out to the rope')
         self.j_ctrl.robot_setjoint(0, q_stop)
 
-    def wrap(self):
+    def winding(self):
+        ## reset -> load info -> winding step() by step() -> back to starting pose
+
+        ic = image_converter()
+        while ic.has_data==False:
+            print('waiting for RGB data')
+            rospy.sleep(0.1)
+
+        print("rgb_data_ready")
+
         self.reset()
         ## recover rod's information from the saved data
         rod = rod_finder(self.scene)
@@ -91,19 +103,46 @@ class robot_wrap():
         ##-------------------##
         ## generate spiral here
         center_t = copy.deepcopy(t_rod2world)
-        step_size = 0.02
+        step_size = 0.005
         r = rod.info.r
         ## l is the parameter to be tuned
-        l = 2*pi*r + 0.1
+        l = 2*pi*r + 0.05
 
         ## let's do a few rounds
-        for i in range(3):
-            self.step(center_t, r, l, step_size)
-            center_t = tf_with_offset(center_t, [0, step_size, 0])
+        cnt = 0
+
+        # ## TODO replace here with the center of the rope that is on the rod
+        # ## take that as the starting point of winding.
+        # gripper_pos = None
+        # while gripper_pos is None:
+        #     img = copy.deepcopy(ic.cv_image)
+        #     gripper_pos = gp_estimation(img, rod.info, l)
+        #     if gripper_pos is None:
+        #         input("grasping point not found, try to move the cable a little bit.")
+        #     else:
+
+        #         break
+
+        print("====starting the first wrap")
+        # for i in range(3):
+        #     center_t[i, 3] = gripper_pos[i]
+        while cnt < 1:
+            ## grasping position
+            img = copy.deepcopy(ic.cv_image)
+            print('expecting l is: %.3f'%(l))
+            gripper_pos = gp_estimation(img, rod.info, l)
+            if gripper_pos is None:
+                ## One possibility of having no result: l is too long
+                input("grasping point not found, try to move the cable a little bit.")
+            else:
+                cnt += 1
+                print(gripper_pos)
+                self.step(center_t, r, l, step_size, gripper_pos)
+                center_t = tf_with_offset(center_t, [0, step_size, 0])
         
         self.j_ctrl.robot_default_l_low()
 
-    def step(self, center_t, r, l, step_size):
+    def step(self, center_t, r, l, step_size, gripper_pos):
         curve_path = self.pg.generate_nusadua(center_t, l, r, step_size)
 
         self.pg.publish_waypoints(curve_path)
@@ -115,7 +154,7 @@ class robot_wrap():
         n_samples = 10
         dt = 2
         q_knots = []
-        last_j_angle = 0## wrapping
+        last_j_angle = 0.0## wrapping
 
         # for i in range(len(curve_path)):
         #     print(curve_path[i])
@@ -136,7 +175,11 @@ class robot_wrap():
         j_traj = interpolation(q_knots, n_samples, dt)
 
         ## from default position move to the rope starting point
-        stop  = curve_path[0]
+        stop  = copy.deepcopy(curve_path[0])
+        ## update the [x,y,z] only to catch the rope
+        stop.position.x = gripper_pos[0]
+        stop.position.y = gripper_pos[1] + 0.09
+        stop.position.z = gripper_pos[2]
         ## based on the frame of link_7 (not the frame of the rod)
         ## z pointing toward right
         start = pose_with_offset(stop, [0, 0, -0.08])
@@ -150,7 +193,7 @@ class robot_wrap():
         # self.j_ctrl.robot_setjoint(0, q_start1)
         self.move_p2p(start, stop, j_start_value)
         ## grabbing the rope
-        self.gripper.l_close()
+        # self.gripper.l_close()
 
         rospy.sleep(2)
 
@@ -161,7 +204,12 @@ class robot_wrap():
         self.gripper.l_open()
 
         start = curve_path[-1]
-        stop = pose_with_offset(start, [0, 0.08, 0])
+        # stop = pose_with_offset(start, [0, 0.08, 0])
+        # stop = pose_with_offset(start, [2*r, 0.08, 0])
+        stop = copy.deepcopy(start)
+        stop.position.x -= 2*r
+        ## ik will return -1 (no solution) if lower than 0.1
+        stop.position.z = 0.1
 
         # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, start, last_j_angle))
         # rospy.sleep(2)
@@ -234,7 +282,7 @@ if __name__ == '__main__':
             exit()
 
         ## initializing the robot's motion control
-        rw = robot_wrap()
+        rw = robot_winding()
 
         if args.reset:
             ## reset robot pose (e.g., move the arms out of the camera to do the init)
@@ -243,4 +291,4 @@ if __name__ == '__main__':
         else:
             ## check if rod_info.pickle exists.
             ## start to plan
-            rw.wrap()
+            rw.winding()
