@@ -20,8 +20,100 @@ from ariadne_plus.srv import getSplines, getSplinesRequest, getSplinesResponse
 from scipy.interpolate import splev, splrep, splprep
 
 import sys
-sys.path.append('../../')
+sys.path.append('../')
 from utils.vision.rgb_camera import image_converter
+
+
+def hue_detection(img, conners, debug=False):
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    ## extract feature_map from img by using the 2d bounding box
+    height = img.shape[0]
+    width = img.shape[1]
+    feature_map = []
+    masked_image = np.zeros((height,width), dtype=np.uint8)
+    for iy in range(height):
+        for ix in range(width):
+            j = cv2.pointPolygonTest(cornners, (ix,iy), False)
+            if j > 0:
+                feature_map.append([iy, ix, hsv[iy, ix, 0]])
+
+    feature_map = np.array(feature_map)
+
+    hist, _ = np.histogram(feature_map, bins=list(range(257)))
+    # plt.stairs(hist, list(range(257)), fill=True)
+    # plt.yscale("log")
+    # plt.show()
+    
+    # OTSU method to estimate the threshold
+    hist_norm = hist/hist.sum()
+    Q = hist_norm.cumsum()
+    bins = np.arange(256)
+    fn_min = np.inf
+    thresh = -1
+    for i in range(255):
+        p1,p2 = np.hsplit(hist_norm,[i]) # probabilities
+        q1,q2 = Q[i],Q[255]-Q[i] # cum sum of classes
+        if q1 < 1.e-6 or q2 < 1.e-6:
+            continue
+        b1,b2 = np.hsplit(bins,[i]) # weights
+        # finding means and variances
+        m1,m2 = np.sum(p1*b1)/q1, np.sum(p2*b2)/q2
+        v1,v2 = np.sum(((b1-m1)**2)*p1)/q1,np.sum(((b2-m2)**2)*p2)/q2
+        # calculates the minimization function
+        fn = v1*q1 + v2*q2
+        if fn < fn_min:
+            fn_min = fn
+            thresh = i
+
+    print("Threshold is %d"%thresh)
+
+    ## find two peaks, p1: peak1, p2: peak2
+    p1_val = np.amax(hist[:thresh])
+    p2_val = np.amax(hist[thresh:])
+    h_idx = 0
+    if p1_val > p2_val:
+        ## pick the one on the right
+        h_idx = np.where(hist==p2_val)[0][-1]
+        for i in range(thresh):
+            hist[i] = 0
+    else:
+        ## or pick the left one
+        h_idx = np.where(hist==p1_val)[0][0]
+        for i in range(thresh):
+            hist[i] = 0
+
+    print("The second peak is %d"%h_idx)
+
+    if debug:
+        for iy in range(height):
+            for ix in range(width):
+                j = cv2.pointPolygonTest(cornners, (ix,iy), False)
+                if j > 0:
+                    masked_image[iy, ix] = hsv[iy, ix, 0]
+                else:
+                    masked_image[iy, ix] = 0
+
+        plt.imshow(masked_image)
+        plt.show()
+
+    hist_norm = hist/hist.sum()
+    sigma = 0
+    for i in range(len(hist)):
+        sigma += (i-h_idx)**2*hist[i]
+    sigma = sqrt(sigma/hist.sum())
+    print(sigma)
+
+    # plt.stairs(hist_norm, list(range(257)), fill=True)
+    # x = np.linspace(0, len(hist), len(hist))
+    # y = norm.pdf(x, h_idx, 3)
+    # plt.plot(x, y)
+    # plt.show()
+
+    h_range = [h_idx-sigma, h_idx+sigma]
+    print(h_range)
+    return h_range
+
 
 def generateImage(img_np):
     img = Image.fromarray(img_np).convert("RGB") 
@@ -87,7 +179,7 @@ def check_spline(spline, box2d, l):
     on_rod = False
     cnt = 0
     while cnt < len(spline[1]):
-        j = cv2.pointPolygonTest(box2d, (spline[0][cnt],spline[1][cnt]), False)
+        j = cv2.pointPolygonTest(rod_info.box2d, (spline[0][cnt],spline[1][cnt]), False)
         if j > 0:
             ## on rod detected
             on_rod = True
@@ -97,7 +189,7 @@ def check_spline(spline, box2d, l):
 
     if on_rod:
         while cnt < len(spline[1]):
-            j = cv2.pointPolygonTest(box2d, (spline[0][cnt],spline[1][cnt]), False)
+            j = cv2.pointPolygonTest(rod_info.box2d, (spline[0][cnt],spline[1][cnt]), False)
             if j > 0:
                 cnt += 1
             else:
@@ -118,9 +210,7 @@ def check_spline(spline, box2d, l):
         ## spline not starts from the rod, skip
         return None
 
-def gp_estimation(img, rod_info, l=0.1, debug=False):
-    ## estimating grasping point, given an image, rod's information,
-    ## and expecting length of the rope (from rod to the grasping point)
+def main(img, box2d, serial_number):
 
     ## box2d:
     ## 3----4
@@ -178,31 +268,14 @@ def gp_estimation(img, rod_info, l=0.1, debug=False):
     ## img.shape[1]: x/width
     ## img.shape[0]: y/height
 
+    l = 0.1 ## expecting rope length, unit: meter
     x3_p = rod_info.box2d[2][0]
     x4_p = rod_info.box2d[3][0]
     y3_p = rod_info.box2d[2][1]
     y4_p = rod_info.box2d[3][1]
     l_pixel = sqrt((x3_p-x4_p)**2+(y3_p-y4_p)**2)
     scale = rod_info.l/l_pixel
-    print("phsical to pixel scale is: %f/%f=%f"%(rod_info.l, l_pixel, scale))
-
-    if debug:
-        fig = plt.figure(figsize=(12,10))
-        ax0 = plt.subplot2grid((2,2),(0,0))
-        ax1 = plt.subplot2grid((2,2),(0,1))
-        ax2 = plt.subplot2grid((2,2),(1,0),colspan=2)
-
-        ax0.imshow(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
-        ax1.imshow(cv2.cvtColor(dl_mask, cv2.COLOR_BGR2RGB))
-
-        ax2.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        for i in range(len(resp1.tck)):
-            spline = eval_spline(resp1.tck[i], crop_corners, (640,480))
-            ax2.plot(spline[0], spline[1], color='c', linewidth=2)
-
-        plt.tight_layout()
-        plt.show()
-
+    print(l/scale)
     checked = None
     for i in range(len(resp1.tck)):
         spline = eval_spline(resp1.tck[i], crop_corners, (640,480))
@@ -214,10 +287,7 @@ def gp_estimation(img, rod_info, l=0.1, debug=False):
 
     if checked is None:
         print("No possible rope end is found")
-        return None
     else:
-        ## return estimated grasping point position
-        # center of the rectangle, in pixel
         xc_p = (rod_info.box2d[2][0] + rod_info.box2d[0][0])/2
         yc_p = (rod_info.box2d[2][1] + rod_info.box2d[0][1])/2
 
@@ -231,8 +301,25 @@ def gp_estimation(img, rod_info, l=0.1, debug=False):
         x = rod_info.pose.position.x + rod_info.r
         y = rod_info.pose.position.y + dy
         z = rod_info.pose.position.z + dz
-        print("found grasping point: %.3f, %.3f, %.3f"%(x, y, z))
-        return [x, y, z]
+
+        print([x,y,z])
+
+        # plt.rcParams['figure.figsize']=(12,10)
+        fig = plt.figure(figsize=(12,10))
+        ax0 = plt.subplot2grid((2,2),(0,0))
+        ax1 = plt.subplot2grid((2,2),(0,1))
+        ax2 = plt.subplot2grid((2,2),(1,0),colspan=2)
+
+        ax0.imshow(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
+        ax1.imshow(cv2.cvtColor(dl_mask, cv2.COLOR_BGR2RGB))
+
+        ax2.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        ax2.plot(spline[0], spline[1], color='c', linewidth=2)
+        ax2.scatter(checked[0], checked[1], color='b', linewidth=5)
+
+        plt.tight_layout()
+        plt.show()
+        # plt.savefig(str(serial_number)+'.png')
 
 
 if __name__ == '__main__': 
@@ -248,7 +335,8 @@ if __name__ == '__main__':
             rospy.sleep(0.1)
 
     serial_number = 0
-    gp_estimation(ic.cv_image, rod_info, 0.1)
+    img = copy.deepcopy(ic.cv_image)
+    main(img, rod_info.box2d, serial_number)
     # for i in range(30):
-    #     main(ic.cv_image, rod_info.box2d, 0.1)
+    #     main(rod_info.box2d, ic, i)
     #     input("test: "+str(i))

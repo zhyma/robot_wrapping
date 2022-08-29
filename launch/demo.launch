@@ -12,5 +12,7 @@
   <include file="$(find rs2pcl)/launch/rws_online.launch">
   </include>
 
-</launch>
+  <include file="$(find rs2pcl)/launch/ariadne.launch">
+  </include>
 
+</launch>

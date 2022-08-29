@@ -18,7 +18,7 @@ from utils.robot.gripper_ctrl    import gripper_ctrl
 from utils.robot.interpolation   import interpolation
 
 from utils.vision.rgb_camera     import image_converter
-from utils.vision.rope_dnn        import gp_estimation
+from utils.vision.rope_detect    import rope_detect
 
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 
