@@ -9,6 +9,8 @@ import cv2
 from utils.vision.rgb_camera  import image_converter
 from utils.vision.rope_detect import rope_detect
 
+import datetime
+
 def display_img(img):
     cv2.imshow('image', img)
     show_window = True
@@ -33,8 +35,10 @@ if __name__ == '__main__':
     serial_number = 0
     rd = rope_detect(rod_info)
     rd.gp_estimation(ic.cv_image, 0.1)
-    cv2.imshow('image', rd.masked_img)
-    cv2.waitKey(0)
+    # cv2.imshow('image', rd.masked_img)
+    # cv2.waitKey(0)
+    now_time = datetime.datetime.now().strftime('%m-%d-%H-%M-%S')
+    cv2.imwrite(now_time+'.png', rd.masked_img)
 
 
     # for i in range(30):
