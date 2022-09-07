@@ -10,6 +10,8 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 
+import numpy as np
+
 # Convert RGB camera data (rostopic) to OpenCV np.arrays
 
 class image_converter:
@@ -18,7 +20,7 @@ class image_converter:
     self.image_pub = rospy.Publisher("image_topic_2",Image)
 
     self.bridge = CvBridge()
-    self.image_sub = rospy.Subscriber("/camera/color/image_raw",Image,self.callback)
+    self.image_sub = rospy.Subscriber("/front_cam/color/image_raw",Image,self.callback)
 
   def callback(self,data):
     try:
@@ -29,6 +31,9 @@ class image_converter:
     # (rows,cols,channels) = cv_image.shape
     # if cols > 60 and rows > 60 :
     #   cv2.circle(cv_image, (50,50), 10, 255)
+
+    poly = np.array([[923, 391],[508,370],[512,310],[927,331]])
+    cv_image = cv2.polylines(cv_image, [poly], True, (255, 0, 0), 3)
 
     cv2.imshow("Image window", cv_image)
     cv2.waitKey(3)
