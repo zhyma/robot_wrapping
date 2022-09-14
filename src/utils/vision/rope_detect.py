@@ -24,6 +24,8 @@ from utils.vision.rgb_camera import image_converter
 from utils.vision.rope_pre_process import get_subimg
 from utils.vision.rope_post_process import get_rope_mask, find_ropes, find_gp
 
+from utils.vision.rope_post_process import get_rope_mask, find_ropes, find_gp
+
 def generateImage(img_np):
     img = Image.fromarray(img_np).convert("RGB") 
     msg = sensor_msgs.msg.Image()
@@ -35,6 +37,11 @@ def generateImage(img_np):
     msg.step = 3 * img.width
     msg.data = np.array(img).tobytes()
     return msg
+
+class rope_info:
+    def __init__(self, hue, thickness):
+        self.hue = hue
+        self.d = thickness
 
 class rope_detect:
     def __init__(self, rod_info):

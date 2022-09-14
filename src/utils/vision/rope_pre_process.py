@@ -3,6 +3,17 @@ import numpy as np
 import copy
 from math import sqrt
 
+def find_all_contours(img, size_min=50):
+    contours, hierarchy = cv2.findContours(img,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+    rope_piece = []
+    for i in range(len(contours)):
+        area = cv2.contourArea(contours[i])
+        if area > size_min:
+            rope_piece.append(i)
+
+    cont = [contours[i] for i in rope_piece]
+    return cont
+
 def get_subimg_coord(poly, ratio=None):
     ## extract 4:3 image that includes ropes.
     sort1 = poly[poly[:,1].argsort()]

@@ -6,8 +6,8 @@
   </include>
 
   <!--side realsense-->
-  <include file="$(find rs2pcl)/launch/side_cam.launch">
-  </include>
+  <!--<include file="$(find rs2pcl)/launch/side_cam.launch">
+  </include>-->
 
   <include file="$(find rs2pcl)/launch/rws_online.launch">
   </include>
