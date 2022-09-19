@@ -24,8 +24,6 @@ from utils.vision.rgb_camera import image_converter
 from utils.vision.rope_pre_process import get_subimg
 from utils.vision.rope_post_process import get_rope_mask, find_ropes, find_gp
 
-from utils.vision.rope_post_process import get_rope_mask, find_ropes, find_gp
-
 def generateImage(img_np):
     img = Image.fromarray(img_np).convert("RGB") 
     msg = sensor_msgs.msg.Image()
@@ -86,7 +84,7 @@ class rope_detect:
         # full_mask = get_rope_mask(img.shape[:2], crop_corners, req["img_mask"], feature_mask)
         r = find_ropes(full_mask)
 
-        l_expect = 200
+        l_expect = l
         ## get back the grasping point
         gp = find_gp(r[0], self.rod_info.box2d, l_expect)
 

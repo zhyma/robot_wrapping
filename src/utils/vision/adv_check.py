@@ -1,12 +1,10 @@
 import cv2
 import numpy as np
 import copy
-from math import sqrt
-import matplotlib.pyplot as plt
 
-import sys
-sys.path.append('../../')
-from utils.vision.rope_pre_process import find_all_contours
+from math import sqrt
+
+import matplotlib.pyplot as plt
 
 def helix_adv_mask(h_img, poly, color_range):
     ## extract feature_map from img by using the 2d bounding box
@@ -35,6 +33,17 @@ def helix_adv_mask(h_img, poly, color_range):
     output = cv2.dilate(output, kernel, iterations=1)
 
     return output
+
+def find_all_contours(img, size_min=50):
+    contours, hierarchy = cv2.findContours(img,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+    rope_piece = []
+    for i in range(len(contours)):
+        area = cv2.contourArea(contours[i])
+        if area > size_min:
+            rope_piece.append(i)
+
+    cont = [contours[i] for i in rope_piece]
+    return cont
 
 def get_single_hull(img):
     cont = find_all_contours(img)
@@ -68,3 +77,53 @@ def check_adv(img1, img2, poly, hue):
     p = solidity(mask2, hull1, hull2)
 
     return p
+
+
+if __name__ == '__main__': 
+    from rope_pre_process import hue_detection
+    img_list = ["./quality/09-06-10-27-48.png",\
+                "./quality/09-06-10-28-31.png",\
+                "./quality/09-06-10-29-12.png",\
+                "./quality/09-06-10-30-12.png"]
+
+    i = 2
+    img1 = cv2.imread(img_list[i])
+    img2 = cv2.imread(img_list[i+1])
+
+    poly = np.array([[923, 391],[508,370],[512,310],[927,331]])
+
+    ## extend the size:
+    rope_hue = hue_detection(img1, poly)
+    mask1 = helix_adv_mask(cv2.cvtColor(img1, cv2.COLOR_BGR2HSV)[:,:,0], poly, rope_hue)
+    mask2 = helix_adv_mask(cv2.cvtColor(img2, cv2.COLOR_BGR2HSV)[:,:,0], poly, rope_hue)
+    
+    fig = plt.figure(figsize=(8,8))
+    ax0 = plt.subplot2grid((3,2),(0,0))
+    ax1 = plt.subplot2grid((3,2),(0,1))
+    ax2 = plt.subplot2grid((3,2),(1,0))
+    ax3 = plt.subplot2grid((3,2),(1,1))
+    ax4 = plt.subplot2grid((3,2),(2,0))
+    ax5 = plt.subplot2grid((3,2),(2,1))
+
+    ax0.imshow(cv2.cvtColor(img1, cv2.COLOR_BGR2RGB))
+    ax1.imshow(cv2.cvtColor(img2, cv2.COLOR_BGR2RGB))
+    ax2.imshow(mask1)
+    ax3.imshow(mask2)
+
+    hull1 = get_single_hull(mask1)
+    hull2 = get_single_hull(mask2)
+
+    p = solidity(mask2, hull1, hull2)
+    print(p)
+
+    hull1_img = np.zeros(mask1.shape, dtype=np.uint8)
+    cv2.drawContours(hull1_img, [hull1],-1,255,1)
+    hull2_img = np.zeros(mask2.shape, dtype=np.uint8)
+    cv2.drawContours(hull2_img, [hull2],-1,255,1)
+
+    ax4.imshow(hull1_img)
+    ax5.imshow(hull2_img)
+
+    plt.tight_layout()
+
+    plt.show()

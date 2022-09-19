@@ -6,6 +6,10 @@ from math import sqrt
 from skimage.morphology import skeletonize
 import operator
 
+import sys
+sys.path.append('../../')
+from utils.vision.bfs import bfs
+
 def expand_mask(shape, crop_corners, mask):
     ## shape: [heigh/y, width/x]
     ## crop_corners: ((x1, y1), (x2, y2))
@@ -62,40 +66,21 @@ def find_ropes(img):
     ropes = []
     [height, width] = img.shape
 
+    skip_list = []
+
+    ## search from bottom to top for the 
     for iy in range(height-1, 0, -1):
-        for ix in range(width):
-            if img[iy, ix] > 100:
-                ## a pixel belong to a piece of rope
-                connected = []
-                for j in ropes:
-                    if abs(iy-j.link[0][1]) + abs(ix-j.link[0][0]) <= 2:
-                        ## is connected to one of the rope
-                        connected.append(j)
-                if len(connected) > 0:
-                    # filter out short branch
-                    grow_dir = []
-                    max_len = 0
-                    for k in connected:
-                        if (k.len > 10) or (k.len > max_len):
-                            if (k.len > max_len):
-                                max_len = k.len
-                            grow_dir.append(k)
-                    for k in grow_dir:
-                        k.link = [[ix, iy]] + k.link
-                        k.len += 1
-                else:
-                    ## no previous section, create a new one
-                    ropes.append(rope_info())
-                    ropes[-1].link = [[ix, iy]]
-                    ropes[-1].len = 1
-            else:
-                continue
+        for ix in range(width-1, 0, -1):
+            if (img[iy, ix] > 100) and ([ix, iy] not in skip_list):
+                r, visited_list = bfs(img, [ix,iy], [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0]], skip_list)
+                if len(r) > 1:
+                    r.reverse()
+                    ropes.append(rope_info(r))
+                skip_list += visited_list
 
     ropes.sort(key=operator.attrgetter('len'), reverse=True)
     if len(ropes) >= 2:
         ## always return the one for winding first, the "fix end" as the 2nd
-        ropes[0].estimate_center()
-        ropes[1].estimate_center()
         if ropes[0].center[0] > ropes[1].center[0]:
             detected = [ropes[0], ropes[1]]
         else:
@@ -159,12 +144,9 @@ def find_gp(rope, poly, l_expect):
         return rope.link[cnt]
 
 class rope_info():
-    def __init__(self):
-        self.link = [] # [[x0, y0], [x1, y1], ...]
-        self.center = None
-        self.len = 0
-
-    def estimate_center(self):
+    def __init__(self, rope):
+        self.link = rope # [[x0, y0], [x1, y1], ...]
+        self.len = len(rope)
         sum = [0, 0]
         for i in self.link:
             sum[0] += i[0]

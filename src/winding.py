@@ -76,6 +76,7 @@ class robot_winding():
         self.j_ctrl.robot_setjoint(0, q_stop)
 
     def winding(self):
+        ##---- winding task entrance here ----##
         ## reset -> load info -> winding step() by step() -> back to starting pose
 
         ic = image_converter()

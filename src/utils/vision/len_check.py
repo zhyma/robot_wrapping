@@ -1,12 +1,18 @@
 import cv2
 import numpy as np
 import copy
+
 from math import sqrt
+
+import matplotlib.pyplot as plt
+
+from adv_check import helix_adv_mask, find_all_contours
+
 from skimage.morphology import skeletonize
 
 import sys
 sys.path.append('../../')
-from utils.vision.rope_pre_process import find_all_contours
+from utils.vision.bfs import bfs
 
 def helix_len_mask(h_img, poly, color_range):
     ## extract feature_map from img by using the 2d bounding box
@@ -82,66 +88,7 @@ def string_search(img, bottom_edge, debug=False):
     ## find the extra length
     ## breath first search, always prune the shortest branch greedily
     ## find the intersection between the skeleton and the 
-    search = True
-    node0 = node(rope_top, None)
-    visit_list = [node0]
-    frontier = [node0]
-    ## 8 connection
-    while search:
-        l = len(frontier)
-        ## search on all frontier nodes, 
-        ## move down one level (if it's child exist),
-        ## or delete the frontier node (if no child, prune greadily)
-        for i in range(l-1, -1, -1):
-            curr_node = frontier[i]
-            for next in  [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]]:
-                x = curr_node.xy[0] + next[0]
-                y = curr_node.xy[1] + next[1]
-                n_children = 0
-                
-                visited = False
-                for j in visit_list:
-                    if [x,y] == j.xy:
-                        visited = True
-
-                ## search for valid kids
-                if visited:
-                    ## skip any visited
-                    continue
-                if (x < 0) or (y < 0) or (x > width-1) or (y > height-1):
-                    ## skip those out of the boundary
-                    continue
-                if img[y, x] < 100:
-                    ## skip those not being marked
-                    continue
-                
-                ## those are the children of the current node
-                n_children += 1
-                new_node = node([x,y], curr_node)
-                frontier.append(new_node)
-                visit_list.append(new_node)
-
-                if n_children < 1:
-                    ## reach the edge of the image, does not have a child  
-                    curr_node.n_children = -1
-                else:
-                    curr_node.n_children = n_children
-
-            if len(frontier) > 1:
-                ## more than one frontier node left, the other one must has the same length
-                ## (edges between nodes are equally weighted)
-                frontier.pop(i)
-            else:
-                ## no other frontier node left, stop searching
-                search = False
-
-    mask = None
-    
-    string = []
-    i_node = frontier[0]
-    while i_node.parent is not None:
-        string = [i_node.xy] + string
-        i_node = i_node.parent
+    string, _ = bfs(img, rope_top,  [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]], [])
 
     extra_len = 0
     for [x,y] in string:
@@ -157,7 +104,7 @@ def string_search(img, bottom_edge, debug=False):
 
         cv2.line(mask, bottom_edge[0], bottom_edge[1], 255, 2)
 
-    print("total len: {}, extra len: {}".format(frontier[0].len, extra_len))
+    print("total len: {}, extra len: {}".format(len(string), extra_len))
 
     return rope_top, extra_len, mask
 
@@ -252,3 +199,53 @@ class node():
             self.len = parent.len + 1
             
         self.n_children = 0
+
+if __name__ == '__main__': 
+    from rope_pre_process import hue_detection
+
+    fig = plt.figure(figsize=(16,8))
+    ax = []
+    for i in range(3):
+        for j in range(4):
+            ax.append(plt.subplot2grid((3,4),(i,j)))
+
+    img_list = ["./quality/09-06-10-27-48.png",\
+                "./quality/09-06-10-28-31.png",\
+                "./quality/09-06-10-29-12.png",\
+                "./quality/09-06-10-30-12.png"]
+
+    img = []
+    for i in range(4):
+        img.append(cv2.imread(img_list[i]))
+        ax[i].imshow(cv2.cvtColor(img[i], cv2.COLOR_BGR2RGB))
+
+    poly = np.array([[923, 391],[508,370],[512,310],[927,331]])
+
+    ## find the rope in the first image and estimate its' property:
+    
+    rope_hue = hue_detection(img[0], poly)
+    mask0 = helix_adv_mask(cv2.cvtColor(img[0], cv2.COLOR_BGR2HSV)[:,:,0], poly, rope_hue)
+    rope_width, box0 = find_rope_width(mask0)
+
+    ax[4].imshow(mask0)
+    box0_img = np.zeros(mask0.shape, dtype=np.uint8)
+    cv2.drawContours(box0_img, [box0],-1,255,1)
+    ax[8].imshow(box0_img)
+
+    mask = []
+    contours = []
+    inter_step_img = []
+    for i in range(3):
+        sub_mask, offset, bottom_edge = helix_len_mask(cv2.cvtColor(img[i+1], cv2.COLOR_BGR2HSV)[:,:,0], poly, rope_hue)
+        mask.append(sub_mask)
+        new_mask = remove_active(mask[i], rope_width, bottom_edge)
+        top, extra_len, filtered_string = string_search(new_mask, bottom_edge, debug=True)
+        filtered_string = cv2.circle(filtered_string, top, radius=2, color=255, thickness=-1)
+
+        ax[i+5].imshow(mask[i])
+        inter_step_img.append(filtered_string)
+        ax[i+9].imshow(inter_step_img[i])
+
+    plt.tight_layout()
+
+    plt.show()
