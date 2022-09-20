@@ -120,8 +120,9 @@ class rod_icp():
         ws_color = []
         for i in range(self.raw_array.shape[0]):
             ## x(ar_pos[0]) is the depth direction in RealSense coordiante
-            ##
-            if (self.raw_array[i][0] < ar_pos[0]) and (self.raw_array[i][2] > ar_pos[2]):
+            # if (self.raw_array[i][0] < ar_pos[0]) and (self.raw_array[i][2] > ar_pos[2]):
+            ## The new marker is about 0.55m higher than the old one.
+            if (self.raw_array[i][0] < ar_pos[0]-0.2) and (self.raw_array[i][2] > ar_pos[2]-0.55):
                 ws_array.append([self.raw_array[i][0], self.raw_array[i][1], self.raw_array[i][2]])
                 if visualizing:
                     ws_color.append([color[i][2], color[i][1], color[i][0]])

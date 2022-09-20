@@ -98,11 +98,17 @@ class rod_finder():
         print("depth_data_ready")
 
         ## transformation of the AR tag to world
-        t_ar2world = np.array([[0, 0, 1, 0],\
-                               [1, 0, 0, 0],\
-                               [0, 1, 0, 0.07],\
-                               [0, 0, 0, 1]])
-        t_cam2ar = ws_tf.get_tf('ar_marker_90','front_cam_link')
+        # t_ar2world = np.array([[0, 0, 1, 0],\
+        #                        [1, 0, 0, 0],\
+        #                        [0, 1, 0, 0.07],\
+        #                        [0, 0, 0, 1]])
+        t_ar2world = np.array([[-0.02191529,  0.05454784,  0.99827063,  0.03081299],\
+                               [ 0.99964885, -0.01368227,  0.02269318,  0.00288871],\
+                               [ 0.01489647,  0.99841741, -0.05422884,  0.64434906],\
+                               [ 0.        ,  0.        ,  0.        ,  1.        ]])
+
+        # t_cam2ar = ws_tf.get_tf('ar_marker_90','front_cam_link')
+        t_cam2ar = ws_tf.get_tf('ar_marker_23','front_cam_link')
         t_cam2world = np.dot(t_ar2world,t_cam2ar)
         ws_tf.set_tf("world", "front_cam_link", t_cam2world)
 
@@ -114,12 +120,14 @@ class rod_finder():
 
         print("rgb_data_ready")
 
-        h = ws_tf.get_tf('front_cam_depth_frame', 'ar_marker_90')
+        # h = ws_tf.get_tf('front_cam_depth_frame', 'ar_marker_90')
+        h = ws_tf.get_tf('front_cam_depth_frame', 'ar_marker_23')
         ar_pos = h[:3,3]
         print("ar tag distance: %f"%ar_pos[0])
+        print("ar pose is: {}".format(ar_pos))
         img = copy.deepcopy(ic.cv_image)
         
-        ri.find_rod(rs.pcd, img, ar_pos, visualizing = False)
+        ri.find_rod(rs.pcd, img, ar_pos, visualizing = True)
         self.info.box2d = ri.box2d
         
         ## broadcasting the rod's tf
