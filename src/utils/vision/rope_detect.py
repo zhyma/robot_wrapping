@@ -21,8 +21,10 @@ from ariadne_plus.srv import getSplines, getSplinesRequest, getSplinesResponse
 import sys
 sys.path.append('../../')
 from utils.vision.rgb_camera import image_converter
-from utils.vision.rope_pre_process import get_subimg
+from utils.vision.rope_pre_process import get_subimg, hue_detection
 from utils.vision.rope_post_process import get_rope_mask, find_ropes, find_gp
+from utils.vision.adv_check import helix_adv_mask
+from utils.vision.len_check import find_rope_diameter
 
 def generateImage(img_np):
     img = Image.fromarray(img_np).convert("RGB") 
@@ -37,9 +39,9 @@ def generateImage(img_np):
     return msg
 
 class rope_info:
-    def __init__(self, hue, thickness):
+    def __init__(self, hue, diameter):
         self.hue = hue
-        self.d = thickness
+        self.diameter = diameter
 
 class rope_detect:
     def __init__(self, rod_info):
@@ -60,7 +62,21 @@ class rope_detect:
         self.scale = rod_info.l/l_pixel
         self.bridge = CvBridge()
 
-    def gp_estimation(self, img, l=0.1, plt_debug=False):
+    def get_rope_info(self):
+        ic = image_converter()
+        while ic.has_data==False:
+            print('waiting for RGB data')
+            rospy.sleep(0.1)
+        
+        rope_hue = hue_detection(ic.cv_image, self.rod_info.box2d)
+        mask0 = helix_adv_mask(cv2.cvtColor(ic.cv_image, cv2.COLOR_BGR2HSV)[:,:,0], self.rod_info.box2d, rope_hue)
+        rope_diameter, _ = find_rope_diameter(mask0)
+
+        rope = rope_info(rope_hue, rope_diameter)
+        return rope
+
+
+    def gp_estimation(self, img, l=100, plt_debug=False):
         ## estimating grasping point.
         ## Input: given an image and expecting length (l) of the rope (from rod to the grasping point)
 

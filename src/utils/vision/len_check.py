@@ -6,13 +6,13 @@ from math import sqrt
 
 import matplotlib.pyplot as plt
 
-from adv_check import helix_adv_mask, find_all_contours
-
 from skimage.morphology import skeletonize
 
 import sys
 sys.path.append('../../')
 from utils.vision.bfs import bfs
+from utils.vision.adv_check import helix_adv_mask, find_all_contours
+
 
 def helix_len_mask(h_img, poly, color_range):
     ## extract feature_map from img by using the 2d bounding box
@@ -47,7 +47,7 @@ def helix_len_mask(h_img, poly, color_range):
 
     return output, offset, bottom_edge
 
-def find_rope_width(img):
+def find_rope_diameter(img):
     contours, hierarchy = cv2.findContours(img,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
     rope_piece = []
     size_max = -1
@@ -108,7 +108,7 @@ def string_search(img, bottom_edge, debug=False):
 
     return rope_top, extra_len, mask
 
-def remove_active(img, rope_width, bottom_edge):
+def remove_active(img, rope_diameter, bottom_edge):
 
     ## need to know the rope_width, and the bottom edge of the rod
     [height, width] = img.shape
@@ -140,7 +140,7 @@ def remove_active(img, rope_width, bottom_edge):
 
         ## remove the active end
         cnt_n = 0
-        while (cnt_n < rope_width) and (ix >= 1):
+        while (cnt_n < rope_diameter) and (ix >= 1):
             new_mask[iy, ix] = 0
             cnt_n += 1
             ix -= 1
@@ -151,7 +151,7 @@ def remove_active(img, rope_width, bottom_edge):
 
         ## keep the wrap we want to examine
         cnt_n = 0
-        while (cnt_n < rope_width) and (ix >= 1):
+        while (cnt_n < rope_diameter) and (ix >= 1):
             if new_mask[iy, ix] > 100:
                 cnt_n += 1
                 ix -= 1
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     
     rope_hue = hue_detection(img[0], poly)
     mask0 = helix_adv_mask(cv2.cvtColor(img[0], cv2.COLOR_BGR2HSV)[:,:,0], poly, rope_hue)
-    rope_width, box0 = find_rope_width(mask0)
+    rope_diameter, box0 = find_rope_diameter(mask0)
 
     ax[4].imshow(mask0)
     box0_img = np.zeros(mask0.shape, dtype=np.uint8)
@@ -238,7 +238,7 @@ if __name__ == '__main__':
     for i in range(3):
         sub_mask, offset, bottom_edge = helix_len_mask(cv2.cvtColor(img[i+1], cv2.COLOR_BGR2HSV)[:,:,0], poly, rope_hue)
         mask.append(sub_mask)
-        new_mask = remove_active(mask[i], rope_width, bottom_edge)
+        new_mask = remove_active(mask[i], rope_diameter, bottom_edge)
         top, extra_len, filtered_string = string_search(new_mask, bottom_edge, debug=True)
         filtered_string = cv2.circle(filtered_string, top, radius=2, color=255, thickness=-1)
 

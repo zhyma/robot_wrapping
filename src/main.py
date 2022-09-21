@@ -39,52 +39,55 @@ def rod_init():
         print("Rod's information has been saved to file.")
     
 def rope_init():
-    # rope = rope_info()
-    ic = image_converter()
-    while ic.has_data==False:
-            print('waiting for RGB data')
-            rospy.sleep(0.1)
-    img = copy.deepcopy(ic.cv_image)
+    with open('rod_info.pickle', 'rb') as handle:
+        rod_info = pickle.load(handle)
+
+    rd = rope_detect(rod_info)
+    rope = rd.get_rope_info()
+
+    with open('rope_info.pickle', 'wb') as handle:
+        pickle.dump(rope, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        print("Rope's information has been saved to file.")
 
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser(description='Robot winding the given rope around a given rod.')
-    parser.add_argument('-info', '--info', action='store_true', help='Read "rod_info.pickle", show the saved rod\'s information.')
-    parser.add_argument('-rod_init', '--rod_init', action='store_true', help='Use the Realsense to obtain the rod\'s information and save to a file.')
-    parser.add_argument('-rope_init', '--rope_init', action='store_true', help='Use the Realsense to obtain the rod\'s information and save to a file.')
-    parser.add_argument('-reset', '--reset', action='store_true', help='reset the robot to its\' default position.')
-
-    args = parser.parse_args()
-
-    if args.info:
-        with open('rod_info.pickle', 'rb') as handle:
-            rod_info = pickle.load(handle)
-            print(rod_info.pose)
-            print(rod_info.r)
-            print(rod_info.l)
-            print(rod_info.box2d)
-
-    else:
-        rospy.init_node('wrap_wrap', anonymous=True)
-        # rate = rospy.Rate(10)
-        rospy.sleep(1)
-
-        if args.rod_init:
-            rod_init()
-            exit()
-
-        if arg.rope_init:
-            rope_init()
-            exit()
-
-        ## initializing the robot's motion control
-        rw = robot_winding()
-
-        if args.reset:
-            ## reset robot pose (e.g., move the arms out of the camera to do the init)
-            rw.reset()
-
+    run = True
+    menu  = '1' + '. reset the robot\n'
+    menu += '2' + '. get rod info\n'
+    menu += '3' + '. show rod info\n'
+    menu += '4' + '. get rope info\n'
+    menu += '5' + '. train 3 wraps\n'
+    menu += '6' + '. demo current parameters\n'
+    menu += '0. exit\n'
+    while run:
+        choice = input(menu)
+        if choice == '3':
+            with open('rod_info.pickle', 'rb') as handle:
+                rod_info = pickle.load(handle)
+                print(rod_info.pose)
+                print(rod_info.r)
+                print(rod_info.l)
+                print(rod_info.box2d)
+        elif choice in ['1', '2', '4', '5', '6']:
+            rospy.init_node('wrap_wrap', anonymous=True)
+            # rate = rospy.Rate(10)
+            rospy.sleep(1)
+            if choice == '2':
+                ## init rod
+                rod_init()
+            elif choice == '4':
+                ## init rope
+                rope_init()
+            else:
+                rw = robot_winding()
+                if choice == '1':
+                    ## reset the robot
+                    rw.reset()
+                elif choice == '5':
+                    ## tune the parameters with 3 wraps
+                    rw.winding()
+                elif choice == '6':
+                    ##
+                    ...
         else:
-            ## check if rod_info.pickle exists.
-            ## start to plan
-            rw.winding()
+            ## exit
+            run = False
