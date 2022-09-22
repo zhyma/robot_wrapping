@@ -42,32 +42,40 @@ def rope_init():
     with open('rod_info.pickle', 'rb') as handle:
         rod_info = pickle.load(handle)
 
-    rd = rope_detect(rod_info)
-    rope = rd.get_rope_info()
+    rope = rope_detect(rod_info)
+    rope.get_rope_info()
 
     with open('rope_info.pickle', 'wb') as handle:
-        pickle.dump(rope, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(rope.info, handle, protocol=pickle.HIGHEST_PROTOCOL)
         print("Rope's information has been saved to file.")
 
 if __name__ == '__main__':
     run = True
-    menu  = '1' + '. reset the robot\n'
+    menu  = '=========================\n'
+    menu += '1' + '. reset the robot\n'
     menu += '2' + '. get rod info\n'
     menu += '3' + '. show rod info\n'
     menu += '4' + '. get rope info\n'
-    menu += '5' + '. train 3 wraps\n'
-    menu += '6' + '. demo current parameters\n'
+    menu += '5' + '. show rope info\n'
+    menu += '6' + '. train 3 wraps\n'
+    menu += '7' + '. demo current parameters\n'
     menu += '0. exit\n'
     while run:
         choice = input(menu)
-        if choice == '3':
-            with open('rod_info.pickle', 'rb') as handle:
-                rod_info = pickle.load(handle)
-                print(rod_info.pose)
-                print(rod_info.r)
-                print(rod_info.l)
-                print(rod_info.box2d)
-        elif choice in ['1', '2', '4', '5', '6']:
+        if choice in ['3', '5']:
+            if choice == '3':
+                with open('rod_info.pickle', 'rb') as handle:
+                    rod_info = pickle.load(handle)
+                    print(rod_info.pose)
+                    print(rod_info.r)
+                    print(rod_info.l)
+                    print(rod_info.box2d)
+            elif choice == '5':
+                with open('rope_info.pickle', 'rb') as handle:
+                    rope_info = pickle.load(handle)
+                    print(rope_info.hue)
+                    print(rope_info.diameter)
+        elif choice in ['1', '2', '4', '6', '7']:
             rospy.init_node('wrap_wrap', anonymous=True)
             # rate = rospy.Rate(10)
             rospy.sleep(1)
@@ -82,10 +90,10 @@ if __name__ == '__main__':
                 if choice == '1':
                     ## reset the robot
                     rw.reset()
-                elif choice == '5':
+                elif choice == '6':
                     ## tune the parameters with 3 wraps
                     rw.winding()
-                elif choice == '6':
+                elif choice == '7':
                     ##
                     ...
         else:

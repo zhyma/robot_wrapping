@@ -2,17 +2,17 @@
 <launch> 
 
   <!--front realsense and ar tag part-->
-  <include file="$(find rs2pcl)/launch/front_cam.launch">
+  <include file="$(find robot_wrapping)/launch/front_cam.launch">
   </include>
 
   <!--side realsense-->
-  <!--<include file="$(find rs2pcl)/launch/side_cam.launch">
+  <!--<include file="$(find robot_wrapping)/launch/side_cam.launch">
   </include>-->
 
-  <include file="$(find rs2pcl)/launch/rws_online.launch">
+  <include file="$(find robot_wrapping)/launch/rws_online.launch">
   </include>
 
-  <include file="$(find rs2pcl)/launch/ariadne.launch">
+  <include file="$(find robot_wrapping)/launch/ariadne.launch">
   </include>
 
 </launch>

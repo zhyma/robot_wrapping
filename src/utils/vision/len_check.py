@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import copy
 
-from math import sqrt
+from math import sqrt, ceil
 
 import matplotlib.pyplot as plt
 
@@ -60,10 +60,10 @@ def find_rope_diameter(img):
 
     # hull = cv2.convexHull(contours[idx_max])
     rect = cv2.minAreaRect(contours[idx_max])
-    width = rect[1][1]
+    diameter = min(rect[1][0], rect[1][1])
     box = cv2.boxPoints(rect)
     box = np.int0(box)
-    return int(width), box
+    return ceil(diameter), box
 
 def string_search(img, bottom_edge, debug=False):
     ## search for the longest string(path) within a given image

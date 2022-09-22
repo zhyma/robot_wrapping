@@ -24,10 +24,13 @@ if __name__ == '__main__':
         rospy.sleep(0.1)
 
     serial_number = 0
-    rd = rope_detect(rod_info)
-    rope = rd.get_rope_info()
-    print(rope.hue)
-    print(rope.diameter)
-    # rd.gp_estimation(ic.cv_image, 100)
-    # cv2.imshow('image', rd.masked_img)
-    # cv2.waitKey(0)
+    rope = rope_detect(rod_info)
+
+    # rope.get_rope_info()
+    # print(rope.info.hue)
+    # print(rope.info.diameter)
+
+    pose = rope.gp_estimation(ic.cv_image, 100)
+    print(pose)
+    cv2.imshow('image', rope.masked_img)
+    cv2.waitKey(0)

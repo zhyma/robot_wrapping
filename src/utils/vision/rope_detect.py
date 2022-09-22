@@ -62,6 +62,8 @@ class rope_detect:
         self.scale = rod_info.l/l_pixel
         self.bridge = CvBridge()
 
+        self.info = None
+
     def get_rope_info(self):
         ic = image_converter()
         while ic.has_data==False:
@@ -69,11 +71,35 @@ class rope_detect:
             rospy.sleep(0.1)
         
         rope_hue = hue_detection(ic.cv_image, self.rod_info.box2d)
-        mask0 = helix_adv_mask(cv2.cvtColor(ic.cv_image, cv2.COLOR_BGR2HSV)[:,:,0], self.rod_info.box2d, rope_hue)
+        mask0, _, _ = helix_adv_mask(cv2.cvtColor(ic.cv_image, cv2.COLOR_BGR2HSV)[:,:,0], self.rod_info.box2d, rope_hue)
         rope_diameter, _ = find_rope_diameter(mask0)
 
-        rope = rope_info(rope_hue, rope_diameter)
-        return rope
+        self.info = rope_info(rope_hue, rope_diameter)
+
+    def find_frontier(self, img, center_tf):
+        mask, offset, top_edge = helix_adv_mask(cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[:,:,0], self.rod_info.box2d, self.info.hue)
+        [x1, y1] = top_edge[0]
+        [x2, y2] = top_edge[1]
+        a = (y2-y1)/(x2-x1)
+        b = y1-a*x1
+
+        [height, width] = mask.shape
+        ## find the pixel that is at right top corner, being masked, and on the top edge of the rod
+        for ix in range(x2-1, x1, -1):
+            iy = int(a*ix+b)
+            if mask[iy, ix] > 100:
+                break
+
+        frontier_2d = [ix, iy]
+        adv = [0, self.rod_info.l * (ix-(x1+x2)/2)/(x2-x1), 0]
+
+        rot = center_tf[:3, :3]
+        new_tf = copy.deepcopy(center_tf)
+        d_trans = np.dot(rot, np.array(adv))
+        for i in range(3):
+            new_tf[i, 3]+=d_trans[i]
+            
+        return new_tf
 
 
     def gp_estimation(self, img, l=100, plt_debug=False):
@@ -97,7 +123,6 @@ class rope_detect:
         gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
 
         full_mask = get_rope_mask(img.shape[:2], crop_corners, gray, feature_mask)
-        # full_mask = get_rope_mask(img.shape[:2], crop_corners, req["img_mask"], feature_mask)
         r = find_ropes(full_mask)
 
         l_expect = l
@@ -114,7 +139,6 @@ class rope_detect:
         #====
 
         ## Assume the measure of pixels and actual objects are uniformly scaled.
-        
         # print("phsical to pixel scale is: %f/%f=%f"%(rod_info.l, l_pixel, self.scale))
 
 

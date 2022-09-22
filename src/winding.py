@@ -10,12 +10,12 @@ import rospy
 import moveit_commander
 from utils.workspace_tf          import workspace_tf, pose2transformation, transformation2pose
 from utils.robot.rod_finder      import rod_finder
-# from utility.detect_cable        import cable_detection
 from utils.robot.workspace_ctrl  import move_yumi
 from utils.robot.jointspace_ctrl import joint_ctrl
 from utils.robot.path_generator  import path_generator
 from utils.robot.gripper_ctrl    import gripper_ctrl
 from utils.robot.interpolation   import interpolation
+from utils.robot.visualization   import marker
 
 from utils.vision.rgb_camera     import image_converter
 from utils.vision.rope_detect    import rope_detect
@@ -66,19 +66,21 @@ class robot_winding():
         self.yumi = move_yumi(self.robot, self.scene, self.ctrl_group, self.j_ctrl)
         self.pg = path_generator()
 
+        self.marker = marker()
+
     def move_p2p(self, start, stop, j6_value):
         ## move from point to point with j6 value fixed
         q_start = self.yumi.ik_with_restrict(0, start, j6_value)
         self.j_ctrl.robot_setjoint(0, q_start)
         rospy.sleep(2)
         q_stop = self.yumi.ik_with_restrict(0, stop, j6_value)
-        print('reach out to the rope')
         self.j_ctrl.robot_setjoint(0, q_stop)
 
     def winding(self):
         ##---- winding task entrance here ----##
-        ## reset -> load info -> winding step() by step() -> back to starting pose
+        ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
 
+        ## Use images to check S and S'
         ic = image_converter()
         while ic.has_data==False:
             print('waiting for RGB data')
@@ -92,7 +94,12 @@ class robot_winding():
 
         with open('rod_info.pickle', 'rb') as handle:
             rod.info = pickle.load(handle)
-            print(rod.info.pose)
+            print('load rod:{}'.format(rod.info.pose))
+
+        rope = rope_detect(rod.info)
+        with open('rope_info.pickle', 'rb') as handle:
+            rope.info = pickle.load(handle)
+            print('load rope: with color: {}, diameter: {}'.format(rope.info.hue, rope.info.diameter))
 
         rod.add_to_scene()
         print('rod added to scene')
@@ -102,49 +109,51 @@ class robot_winding():
         self.ws_tf.set_tf('world', 'rod', t_rod2world)
 
         ##-------------------##
-        ## generate spiral here
-        center_t = copy.deepcopy(t_rod2world)
-        step_size = 0.005
+        ## generate spiral here, two parameters to tune: advance and l
+        
+        advance = 0.02 ## millimeter
         r = rod.info.r
-        ## l is the parameter to be tuned
         l = 2*pi*r + 0.05
+        print('Estimated L is {}'.format(l))
+        # l = 100 ## use pixel as the unit, not meters
 
         ## let's do a few rounds
         cnt = 0
 
-        # ## TODO replace here with the center of the rope that is on the rod
-        # ## take that as the starting point of winding.
-        # gripper_pos = None
-        # while gripper_pos is None:
-        #     img = copy.deepcopy(ic.cv_image)
-        #     gripper_pos = gp_estimation(img, rod.info, l)
-        #     if gripper_pos is None:
-        #         input("grasping point not found, try to move the cable a little bit.")
-        #     else:
-
-        #         break
-
         print("====starting the first wrap")
+        rod_center = copy.deepcopy(t_rod2world)
         # for i in range(3):
         #     center_t[i, 3] = gripper_pos[i]
         while cnt < 1:
-            ## grasping position
+            ## find the left most wrap on the rod
             img = copy.deepcopy(ic.cv_image)
-            print('expecting l is: %.3f'%(l))
-            gripper_pos = gp_estimation(img, rod.info, l)
+            center_t = rope.find_frontier(img, rod_center)
+
+            ## find the grasping position of the rope
+            # print('expecting l is: %.3f'%(l))
+            gripper_pos = rope.gp_estimation(img, l*1000)
+
+            pose = Pose()
+            pose.position.x = gripper_pos[0]
+            pose.position.y = gripper_pos[1]
+            pose.position.z = gripper_pos[2]
+
+            self.marker.show(pose)
             if gripper_pos is None:
                 ## One possibility of having no result: l is too long
                 input("grasping point not found, try to move the cable a little bit.")
             else:
                 cnt += 1
                 print(gripper_pos)
-                self.step(center_t, r, l, step_size, gripper_pos)
-                center_t = tf_with_offset(center_t, [0, step_size, 0])
+                self.step(center_t, r, l, advance, gripper_pos, execute=True)
+
+                ## Get S'
+                img = copy.deepcopy(ic.cv_image)
         
         self.j_ctrl.robot_default_l_low()
 
-    def step(self, center_t, r, l, step_size, gripper_pos):
-        curve_path = self.pg.generate_nusadua(center_t, l, r, step_size)
+    def step(self, center_t, r, l, advance, gripper_pos, execute=False):
+        curve_path = self.pg.generate_nusadua(center_t, l, r, advance)
 
         self.pg.publish_waypoints(curve_path)
 
@@ -167,7 +176,7 @@ class robot_winding():
             q = self.yumi.ik_with_restrict(0, curve_path[i], last_j_angle)
             if q==-1:
                 ## no IK solution found
-                print("No IK solution is found")
+                print("No IK solution is found at point {} (out of {})".format(i, len(curve_path)))
                 return
 
             q_knots.append(copy.deepcopy(q))
@@ -186,20 +195,15 @@ class robot_winding():
         start = pose_with_offset(stop, [0, 0, -0.08])
 
         print('move closer to the rod')
-        # q_start0 = self.yumi.ik_with_restrict(0, start, j_start_value)
-        # self.j_ctrl.robot_setjoint(0, q_start0)
-        # rospy.sleep(2)
-        # q_start1 = self.yumi.ik_with_restrict(0, stop, j_start_value)
-        # print('reach out to the rope')
-        # self.j_ctrl.robot_setjoint(0, q_start1)
-        self.move_p2p(start, stop, j_start_value)
-        ## grabbing the rope
-        # self.gripper.l_close()
+        if execute:
+            self.move_p2p(start, stop, j_start_value)
+            ## grabbing the rope
+            self.gripper.l_close()
+            rospy.sleep(2)
 
-        rospy.sleep(2)
-
-        # print('send trajectory to actionlib')
-        self.j_ctrl.exec(0, j_traj, 0.2)
+        if execute:
+            # print('send trajectory to actionlib')
+            self.j_ctrl.exec(0, j_traj, 0.2)
 
         ## after release the rope, continue to move down (straighten out the rope)
         self.gripper.l_open()
@@ -215,8 +219,9 @@ class robot_winding():
         # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, start, last_j_angle))
         # rospy.sleep(2)
         # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, stop, last_j_angle))
-        self.move_p2p(start, stop, last_j_angle)
-        rospy.sleep(2)
+        if execute:
+            self.move_p2p(start, stop, last_j_angle)
+            rospy.sleep(2)
 
         start = copy.deepcopy(stop)
         stop  = pose_with_offset(start, [0, 0, -0.08])
@@ -224,8 +229,9 @@ class robot_winding():
         # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, start, last_j_angle))
         # rospy.sleep(2)
         # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, stop, last_j_angle))
-        self.move_p2p(start, stop, last_j_angle)
-        rospy.sleep(2)
+        if execute:
+            self.move_p2p(start, stop, last_j_angle)
+            rospy.sleep(2)
 
     def reset(self):
         ##-------------------##

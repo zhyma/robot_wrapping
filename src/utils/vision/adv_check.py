@@ -17,6 +17,8 @@ def helix_adv_mask(h_img, poly, color_range):
     x1 = sort_x[0,0]
     x2 = sort_x[-1,0]
 
+    offset = [x1, y1]
+
     output = np.zeros((y2-y1+1, x2-x1+1), dtype=np.uint8)
 
     for iy in range(0, y2-y1+1):
@@ -32,7 +34,9 @@ def helix_adv_mask(h_img, poly, color_range):
     output = cv2.erode(output, kernel, iterations=1)
     output = cv2.dilate(output, kernel, iterations=1)
 
-    return output
+    top_edge = np.array([[sort_y[0][0]-x1, sort_y[0][1]-y1], [sort_y[1][0]-x1, sort_y[1][1]-y1]])
+
+    return output, offset, top_edge[top_edge[:,0].argsort()]
 
 def find_all_contours(img, size_min=50):
     contours, hierarchy = cv2.findContours(img,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
