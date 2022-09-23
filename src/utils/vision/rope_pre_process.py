@@ -39,10 +39,9 @@ def binarize_by_hue(h_img, corners, color_range):
 
     return output
 
-def get_subimg(img, poly):
+def get_subimg(img, poly, hue):
     h_binarized = binarize_by_hue(cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[:,:,0],\
-                                  get_subimg_coord(poly), \
-                                  hue_detection(img, poly))
+                                  get_subimg_coord(poly), hue)
 
     cropped_corners = get_subimg_coord(poly, '4/3')
     [[x1, y1], [x2, y2]] = cropped_corners

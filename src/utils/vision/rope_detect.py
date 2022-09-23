@@ -103,11 +103,15 @@ class rope_detect:
 
 
     def gp_estimation(self, img, l=100, plt_debug=False):
+        if self.info is None:
+            print('No rope information, working on one')
+            self.get_rope_info()
+
         ## estimating grasping point.
         ## Input: given an image and expecting length (l) of the rope (from rod to the grasping point)
 
         ## crop to get the workspace
-        crop_corners, cropped_img, feature_mask = get_subimg(img, self.rod_info.box2d)
+        crop_corners, cropped_img, feature_mask = get_subimg(img, self.rod_info.box2d, self.info.hue)
 
         rospy.wait_for_service('get_splines')
         try:

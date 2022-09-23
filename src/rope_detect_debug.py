@@ -26,9 +26,9 @@ if __name__ == '__main__':
     serial_number = 0
     rope = rope_detect(rod_info)
 
-    # rope.get_rope_info()
-    # print(rope.info.hue)
-    # print(rope.info.diameter)
+    rope.get_rope_info()
+    print(rope.info.hue)
+    print(rope.info.diameter)
 
     pose = rope.gp_estimation(ic.cv_image, 100)
     print(pose)
