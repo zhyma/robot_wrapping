@@ -68,8 +68,8 @@ class move_yumi():
         # self.rate = rate
         self.ctrl_group = ctrl_group
         self.ik_solver = []
-        self.ik_solver.append(IK("world", "yumi_link_6_l"))
-        self.ik_solver.append(IK("world", "yumi_link_6_r"))
+        self.ik_solver.append(IK("world", "yumi_link_6_l", timeout=0.03, epsilon=1e-3,solve_type="Distance"))
+        self.ik_solver.append(IK("world", "yumi_link_6_r", timeout=0.03, epsilon=1e-3,solve_type="Distance"))
         # self.ik_solver.append(IK("world", "yumi_link_6_l", timeout=0.05, epsilon=0.005, solve_type='Distance'))
         # self.ik_solver.append(IK("world", "yumi_link_6_r", timeout=0.05, epsilon=0.005, solve_type='Distance'))
         self.j_ctrl = j_ctrl

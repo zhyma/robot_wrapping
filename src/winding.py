@@ -68,25 +68,30 @@ class robot_winding():
 
         self.marker = marker()
 
+    def move2pt(self, point, j6_value):
+        q = self.yumi.ik_with_restrict(0, point, j6_value)
+        if type(q) is int:
+            print('No IK found')
+        else:
+            self.j_ctrl.robot_setjoint(0, q)
+
     def move_p2p(self, start, stop, j6_value):
         ## move from point to point with j6 value fixed
         q_start = self.yumi.ik_with_restrict(0, start, j6_value)
-        self.j_ctrl.robot_setjoint(0, q_start)
+        if type(q_start) is int:
+            print('No IK found')
+        else:
+            self.j_ctrl.robot_setjoint(0, q_start)
         rospy.sleep(2)
         q_stop = self.yumi.ik_with_restrict(0, stop, j6_value)
-        self.j_ctrl.robot_setjoint(0, q_stop)
+        if type(q_stop) is int:
+            print('No IK found')
+        else:
+            self.j_ctrl.robot_setjoint(0, q_stop)
 
     def winding(self):
         ##---- winding task entrance here ----##
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
-
-        ## Use images to check S and S'
-        ic = image_converter()
-        while ic.has_data==False:
-            print('waiting for RGB data')
-            rospy.sleep(0.1)
-
-        print("rgb_data_ready")
 
         self.reset()
         ## recover rod's information from the saved data
@@ -111,9 +116,9 @@ class robot_winding():
         ##-------------------##
         ## generate spiral here, two parameters to tune: advance and l
         
-        advance = 0.02 ## millimeter
+        advance = 0.002 ## millimeter
         r = rod.info.r
-        l = 2*pi*r + 0.05
+        l = 2*pi*r + 0.08
         print('Estimated L is {}'.format(l))
         # l = 100 ## use pixel as the unit, not meters
 
@@ -126,33 +131,13 @@ class robot_winding():
         #     center_t[i, 3] = gripper_pos[i]
         while cnt < 1:
             ## find the left most wrap on the rod
-            img = copy.deepcopy(ic.cv_image)
-            center_t = rope.find_frontier(img, rod_center)
+            cnt += 1
+            self.step(rod_center, r, l, advance, debug = True, execute=False)
 
-            ## find the grasping position of the rope
-            # print('expecting l is: %.3f'%(l))
-            gripper_pos = rope.gp_estimation(img, l*1000)
-
-            pose = Pose()
-            pose.position.x = gripper_pos[0]
-            pose.position.y = gripper_pos[1]
-            pose.position.z = gripper_pos[2]
-
-            self.marker.show(pose)
-            if gripper_pos is None:
-                ## One possibility of having no result: l is too long
-                input("grasping point not found, try to move the cable a little bit.")
-            else:
-                cnt += 1
-                print(gripper_pos)
-                self.step(center_t, r, l, advance, gripper_pos, execute=True)
-
-                ## Get S'
-                img = copy.deepcopy(ic.cv_image)
         
-        self.j_ctrl.robot_default_l_low()
+        # self.j_ctrl.robot_default_l_low()
 
-    def step(self, center_t, r, l, advance, gripper_pos, execute=False):
+    def step(self, center_t, r, l, advance, debug = False, execute=False):
         curve_path = self.pg.generate_nusadua(center_t, l, r, advance)
 
         self.pg.publish_waypoints(curve_path)
@@ -177,22 +162,28 @@ class robot_winding():
             if q==-1:
                 ## no IK solution found
                 print("No IK solution is found at point {} (out of {})".format(i, len(curve_path)))
-                return
-
-            q_knots.append(copy.deepcopy(q))
+            else:
+                q_knots.append(copy.deepcopy(q))
 
         ## solution found, now execute
         j_traj = interpolation(q_knots, n_samples, dt)
 
         ## from default position move to the rope starting point
-        stop  = copy.deepcopy(curve_path[0])
-        ## update the [x,y,z] only to catch the rope
-        stop.position.x = gripper_pos[0]
-        stop.position.y = gripper_pos[1] + 0.09
-        stop.position.z = gripper_pos[2]
+        stop = copy.deepcopy(curve_path[0])
+        stop.position.x = center_t[0,3]
+        stop.position.y = center_t[1,3]
+        stop.position.z = center_t[2,3]
+        stop = pose_with_offset(stop, [0.04, 0.15, -0.08])
+
+        # self.marker.show(stop)
+        # self.move2pt(stop, j_start_value)
+
         ## based on the frame of link_7 (not the frame of the rod)
         ## z pointing toward right
         start = pose_with_offset(stop, [0, 0, -0.08])
+        # print('starting point to grasp is:{}\n'.format(start))
+
+        # self.marker.show(start)
 
         print('move closer to the rod')
         if execute:
@@ -201,12 +192,15 @@ class robot_winding():
             self.gripper.l_close()
             rospy.sleep(2)
 
+        self.move2pt(curve_path[0], j_start_value)
         if execute:
             # print('send trajectory to actionlib')
             self.j_ctrl.exec(0, j_traj, 0.2)
 
-        ## after release the rope, continue to move down (straighten out the rope)
-        self.gripper.l_open()
+        if execute:
+            rospy.sleep(2)
+            ## after release the rope, continue to move down (straighten out the rope)
+            self.gripper.l_open()
 
         start = curve_path[-1]
         # stop = pose_with_offset(start, [0, 0.08, 0])
@@ -247,3 +241,31 @@ class robot_winding():
 
         rospy.sleep(3)
         print('reset done')
+
+
+if __name__ == '__main__':
+    run = True
+    menu  = '=========================\n'
+    menu += '1' + '. reset the robot\n'
+    menu += '2' + '. winding\n'
+    menu += '0. exit\n'
+    menu += 'Your input:'
+    while run:
+        choice = input(menu)
+        
+        if choice in ['1', '2']:
+            rospy.init_node('wrap_wrap', anonymous=True)
+            # rate = rospy.Rate(10)
+            rospy.sleep(1)
+
+            rw = robot_winding()
+            if choice == '1':
+                ## reset the robot
+                rw.reset()
+            elif choice == '2':
+                ## tune the parameters with 3 wraps
+                rw.winding()
+
+        else:
+            ## exit
+            run = False
