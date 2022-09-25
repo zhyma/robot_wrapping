@@ -68,26 +68,51 @@ class robot_winding():
 
         self.marker = marker()
 
-    def move2pt(self, point, j6_value):
-        q = self.yumi.ik_with_restrict(0, point, j6_value)
+    def move2pt(self, point, j6_value, group = 0):
+        q = self.yumi.ik_with_restrict(group, point, j6_value)
         if type(q) is int:
             print('No IK found')
         else:
-            self.j_ctrl.robot_setjoint(0, q)
+            self.j_ctrl.robot_setjoint(group, q)
 
-    def move_p2p(self, start, stop, j6_value):
+    def move_p2p(self, start, stop, j6_value, group = 0):
         ## move from point to point with j6 value fixed
-        q_start = self.yumi.ik_with_restrict(0, start, j6_value)
+        q_start = self.yumi.ik_with_restrict(group, start, j6_value)
         if type(q_start) is int:
-            print('No IK found')
+            print('No IK found @ start')
         else:
-            self.j_ctrl.robot_setjoint(0, q_start)
+            self.j_ctrl.robot_setjoint(group, q_start)
         rospy.sleep(2)
-        q_stop = self.yumi.ik_with_restrict(0, stop, j6_value)
+        q_stop = self.yumi.ik_with_restrict(group, stop, j6_value)
         if type(q_stop) is int:
-            print('No IK found')
+            print('No IK found @ stop')
         else:
-            self.j_ctrl.robot_setjoint(0, q_stop)
+            self.j_ctrl.robot_setjoint(group, q_stop)
+
+    def rope_holding(self):
+        ## go to the rope
+        start = transformation2pose(np.array([[ 1,  0, 0, 0.36 ],\
+                                              [ 0,  0, 1, -0.26],\
+                                              [ 0, -1, 0, 0.12 ],\
+                                              [ 0,  0, 0, 1    ]]))
+
+        stop = transformation2pose(np.array([[ 1,  0, 0, 0.36 ],\
+                                             [ 0,  0, 1, -0.24],\
+                                             [ 0, -1, 0, 0.12 ],\
+                                             [ 0,  0, 0, 1    ]]))
+        ## group=1, right
+        self.move_p2p(start, stop, -0.5, group=1)
+
+        self.gripper.r_close()
+
+        rospy.sleep(2)
+        hold = transformation2pose(np.array([[ 1,  0, 0, 0.34 ],\
+                                             [ 0,  0, 1, -0.26],\
+                                             [ 0, -1, 0, 0.12 ],\
+                                             [ 0,  0, 0, 1    ]]))
+
+        self.move2pt(hold, -0.5, group=1)
+        rospy.sleep(2)
 
     def winding(self):
         ##---- winding task entrance here ----##
@@ -118,12 +143,15 @@ class robot_winding():
         
         advance = 0.002 ## millimeter
         r = rod.info.r
+        print("rod's radius is: {}".format(r))
         l = 2*pi*r + 0.10
         print('Estimated L is {}'.format(l))
         # l = 100 ## use pixel as the unit, not meters
 
         ## let's do a few rounds
         cnt = 0
+
+        self.rope_holding()
 
         print("====starting the first wrap")
         rod_center = copy.deepcopy(t_rod2world)
@@ -134,9 +162,9 @@ class robot_winding():
             ## find the left most wrap on the rod
             cnt += 1
             self.step(t_wrapping, r, l, advance, debug = True, execute=False)
-
         
         # self.j_ctrl.robot_default_l_low()
+        self.reset()
 
     def step(self, center_t, r, l, advance, debug = False, execute=False):
         curve_path = self.pg.generate_nusadua(center_t, l, r, advance)
@@ -175,7 +203,7 @@ class robot_winding():
         # stop.position.y = center_t[1,3]
         # stop.position.z = center_t[2,3]
         # # stop = pose_with_offset(stop, [0.04, 0.15, -0.08])
-        stop = pose_with_offset(stop, [0, 0, 0])
+        stop = pose_with_offset(stop, [0, 0, -0.01])
 
         self.marker.show(stop)
         # self.move2pt(stop, j_start_value)

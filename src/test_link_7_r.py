@@ -81,7 +81,7 @@ class robot_winding():
         ## get transform rod2world here
 
         ht_holding = np.array([[ 1,  0, 0, 0.36 ],\
-                               [ 0,  0, 1, -0.23],\
+                               [ 0,  0, 1, -0.27],\
                                [ 0, -1, 0, 0.12 ],\
                                [ 0,  0, 0, 1    ]])
         pose_holding = transformation2pose(ht_holding)
