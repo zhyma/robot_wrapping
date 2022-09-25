@@ -144,7 +144,7 @@ class robot_winding():
         advance = 0.002 ## millimeter
         r = rod.info.r
         print("rod's radius is: {}".format(r))
-        l = 2*pi*r + 0.10
+        l = 2*pi*(r-0.005) + 0.10
         print('Estimated L is {}'.format(l))
         # l = 100 ## use pixel as the unit, not meters
 
@@ -155,13 +155,15 @@ class robot_winding():
 
         print("====starting the first wrap")
         rod_center = copy.deepcopy(t_rod2world)
-        t_wrapping = tf_with_offset(rod_center, [-0.02, -0.06, 0])
+        t_wrapping = tf_with_offset(rod_center, [-0.02, -0.06, -0.02])
+        # t_wrapping = tf_with_offset(rod_center, [-0.02, -0.06, 0])
         # for i in range(3):
         #     center_t[i, 3] = gripper_pos[i]
         while cnt < 1:
             ## find the left most wrap on the rod
             cnt += 1
             self.step(t_wrapping, r, l, advance, debug = True, execute=False)
+            # t_wrapping = tf_with_offset(t_wrapping, [0, advance, 0])
         
         # self.j_ctrl.robot_default_l_low()
         self.reset()
@@ -198,11 +200,13 @@ class robot_winding():
         j_traj = interpolation(q_knots, n_samples, dt)
 
         ## from default position move to the rope starting point
-        stop = copy.deepcopy(curve_path[0])
-        # stop.position.x = center_t[0,3]
-        # stop.position.y = center_t[1,3]
-        # stop.position.z = center_t[2,3]
-        # # stop = pose_with_offset(stop, [0.04, 0.15, -0.08])
+        # print(pose2transformation(curve_path[0]))
+        # stop = copy.deepcopy(curve_path[0])
+        stop = transformation2pose(np.array([[-1,  0,  0,  0.441],\
+                                             [ 0,  0, -1,  0.010],\
+                                             [ 0, -1,  0,  0.100],\
+                                             [ 0,  0,  0,  1    ]]))
+
         stop = pose_with_offset(stop, [0, 0, -0.01])
 
         self.marker.show(stop)
