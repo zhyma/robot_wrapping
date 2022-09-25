@@ -48,15 +48,22 @@ def all_close(goal, actual, tolerance):
 sys.path.append('../../')
 from utils.workspace_tf import pose2transformation, transformation2pose
 
-def step_back_l(pose, theta):
+def step_back(group, pose, theta):
     ## input is the value of joint_6
     c = cos(theta)
     s = sin(theta)
-    ## homogeneous transformation matrix from link_6_l to link_7_l
-    ht = np.array([[ c, -s, 0, 0.027],\
-                   [ 0,  0, 1, 0.029],\
-                   [-s, -c, 0, 0    ],\
-                   [ 0,  0, 0, 1    ]])
+    if group == 0:
+        ## homogeneous transformation matrix from link_6_l to link_7_l
+        ht = np.array([[ c, -s, 0, 0.027],\
+                       [ 0,  0, 1, 0.029],\
+                       [-s, -c, 0, 0    ],\
+                       [ 0,  0, 0, 1    ]])
+    else:
+        ## homogeneous transformation matrix from link_6_r to link_7_r
+        ht = np.array([[ c, -s, 0, 0.027],\
+                       [ 0,  0, 1, 0.029],\
+                       [-s, -c, 0, 0    ],\
+                       [ 0,  0, 0, 1    ]])
     inv_ht = np.linalg.inv(ht)
     t = pose2transformation(pose)
     return transformation2pose(np.dot(t, inv_ht))
@@ -68,8 +75,8 @@ class move_yumi():
         # self.rate = rate
         self.ctrl_group = ctrl_group
         self.ik_solver = []
-        self.ik_solver.append(IK("world", "yumi_link_6_l", timeout=0.03, epsilon=1e-3,solve_type="Distance"))
-        self.ik_solver.append(IK("world", "yumi_link_6_r", timeout=0.03, epsilon=1e-3,solve_type="Distance"))
+        self.ik_solver.append(IK("world", "yumi_link_6_l", timeout=0.05, epsilon=1e-3,solve_type="Distance"))
+        self.ik_solver.append(IK("world", "yumi_link_6_r", timeout=0.05, epsilon=1e-3,solve_type="Distance"))
         # self.ik_solver.append(IK("world", "yumi_link_6_l", timeout=0.05, epsilon=0.005, solve_type='Distance'))
         # self.ik_solver.append(IK("world", "yumi_link_6_r", timeout=0.05, epsilon=0.005, solve_type='Distance'))
         self.j_ctrl = j_ctrl
@@ -110,7 +117,7 @@ class move_yumi():
             seconds = rospy.get_time()
 
     def ik_with_restrict(self, group, pose_goal, joint_7_value):
-        stepback_pose = step_back_l(pose_goal, joint_7_value)
+        stepback_pose = step_back(group, pose_goal, joint_7_value)
 
         seed_state = self.ctrl_group[group].get_current_joint_values()
         x = stepback_pose.position.x
@@ -120,12 +127,13 @@ class move_yumi():
         qy = stepback_pose.orientation.y
         qz = stepback_pose.orientation.z
         qw = stepback_pose.orientation.w
+
         # ik_sol = self.ik_solver[group].get_ik(seed_state[:6], x, y, z, qx, qy, qz, qw)
-        cnt = 10
-        ik_sol = None
-        while (ik_sol is None) and (cnt > 0):
-            ik_sol = self.ik_solver[group].get_ik(seed_state[:6], x, y, z, qx, qy, qz, qw)
-            cnt -= 1
+        # cnt = 10
+        # ik_sol = None
+        # while (ik_sol is None) and (cnt > 0):
+        ik_sol = self.ik_solver[group].get_ik(seed_state[:6], x, y, z, qx, qy, qz, qw)
+            # cnt -= 1
 
         if ik_sol == None:
             return -1

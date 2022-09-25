@@ -35,7 +35,7 @@ class path_generator():
         t_gb2ft = np.linalg.inv(t_ft2gb)
         for i in range(n_samples):
             
-            t = (2+0.3)*pi/n_samples * i
+            t = (2+0.15)*pi/n_samples * i
             x = r*cos(t)
             z = r*sin(t)
             ## based on the world coordinate

@@ -118,7 +118,7 @@ class robot_winding():
         
         advance = 0.002 ## millimeter
         r = rod.info.r
-        l = 2*pi*r + 0.08
+        l = 2*pi*r + 0.10
         print('Estimated L is {}'.format(l))
         # l = 100 ## use pixel as the unit, not meters
 
@@ -127,12 +127,13 @@ class robot_winding():
 
         print("====starting the first wrap")
         rod_center = copy.deepcopy(t_rod2world)
+        t_wrapping = tf_with_offset(rod_center, [-0.02, -0.06, 0])
         # for i in range(3):
         #     center_t[i, 3] = gripper_pos[i]
         while cnt < 1:
             ## find the left most wrap on the rod
             cnt += 1
-            self.step(rod_center, r, l, advance, debug = True, execute=False)
+            self.step(t_wrapping, r, l, advance, debug = True, execute=False)
 
         
         # self.j_ctrl.robot_default_l_low()
@@ -170,12 +171,13 @@ class robot_winding():
 
         ## from default position move to the rope starting point
         stop = copy.deepcopy(curve_path[0])
-        stop.position.x = center_t[0,3]
-        stop.position.y = center_t[1,3]
-        stop.position.z = center_t[2,3]
-        stop = pose_with_offset(stop, [0.04, 0.15, -0.08])
+        # stop.position.x = center_t[0,3]
+        # stop.position.y = center_t[1,3]
+        # stop.position.z = center_t[2,3]
+        # # stop = pose_with_offset(stop, [0.04, 0.15, -0.08])
+        stop = pose_with_offset(stop, [0, 0, 0])
 
-        # self.marker.show(stop)
+        self.marker.show(stop)
         # self.move2pt(stop, j_start_value)
 
         ## based on the frame of link_7 (not the frame of the rod)
@@ -186,18 +188,16 @@ class robot_winding():
         # self.marker.show(start)
 
         print('move closer to the rod')
-        if execute:
+        if True:
             self.move_p2p(start, stop, j_start_value)
             ## grabbing the rope
             self.gripper.l_close()
             rospy.sleep(2)
 
-        self.move2pt(curve_path[0], j_start_value)
-        if execute:
+        # self.move2pt(curve_path[0], j_start_value)
+        if True:
             # print('send trajectory to actionlib')
             self.j_ctrl.exec(0, j_traj, 0.2)
-
-        if execute:
             rospy.sleep(2)
             ## after release the rope, continue to move down (straighten out the rope)
             self.gripper.l_open()
