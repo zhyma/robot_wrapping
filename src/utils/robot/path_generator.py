@@ -26,7 +26,7 @@ class path_generator():
         n_samples = 12
 
         ## T^{ref}_{obj}: from ref to obj
-        ## t_ft2gb: finger tip with respect to the gripper base
+        ## t_ft2gb: Finger Tip with respect to the Gripper Base
         ## t_gb2ft is the inverse matrix (gb with repesct to ft)
         t_ft2gb = np.array([[1, 0, 0, 0],\
                             [0, 1, 0, 0],\
@@ -35,7 +35,7 @@ class path_generator():
         t_gb2ft = np.linalg.inv(t_ft2gb)
         for i in range(n_samples):
             
-            t = (2+0.15)*pi/n_samples * i
+            t = (2+0)*pi/n_samples * i
             x = r*cos(t)
             z = r*sin(t)
             ## based on the world coordinate
