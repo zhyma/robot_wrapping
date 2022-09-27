@@ -33,14 +33,17 @@ class path_generator():
                             [0, 0, 1, 0.125],\
                             [0, 0, 0, 1]])
         t_gb2ft = np.linalg.inv(t_ft2gb)
+
+        a = 0
+
         for i in range(n_samples):
             
             t = (2+0)*pi/n_samples * i
             x = r*cos(t)
             z = r*sin(t)
             ## based on the world coordinate
-            xr  = x-(l-t*r)*sin(t) * ( 1)
-            zr  = z+(l-t*r)*cos(t) * (-1)
+            xr  = x-(l -a*(2*pi-t) -t*r)*sin(t) * ( 1)
+            zr  = z+(l -a*(2*pi-t) -t*r)*cos(t) * (-1)
             adv = step_size * i/n_samples
 
             # ## Use circle to test

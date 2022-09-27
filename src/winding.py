@@ -133,7 +133,9 @@ class robot_winding():
         ##---- winding task entrance here ----##
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
 
-        self.reset()
+        # self.reset()
+        self.j_ctrl.robot_default_l_low()
+
         ## recover rod's information from the saved data
         rod = rod_finder(self.scene)
 
@@ -166,12 +168,12 @@ class robot_winding():
         ## let's do a few rounds
         cnt = 0
 
-        self.rope_holding()
+        # self.rope_holding()
 
         print("====starting the first wrap")
         rod_center = copy.deepcopy(t_rod2world)
         # t_wrapping = tf_with_offset(rod_center, [-0.02, -0.06, -0.02])
-        t_wrapping = tf_with_offset(rod_center, [-0.00, -0.04, 0])
+        t_wrapping = tf_with_offset(rod_center, [-0.00, -0.02, -0.0])
         # for i in range(3):
         #     center_t[i, 3] = gripper_pos[i]
         while cnt < 1:
@@ -207,15 +209,14 @@ class robot_winding():
         for i in range(n_pts-1, -1, -1):
             # print('waypoint %d is: '%i, end='')
             # print(q0[0])
-            last_j_angle = j_start_value - 2*pi/len(curve_path)*i
+            last_j_angle = j_start_value - 2*pi/n_pts *i
             q = self.yumi.ik_with_restrict(0, curve_path[i], last_j_angle)
             if q==-1:
-                ## no IK solution found
-                print("No IK solution is found at point {} (out of {})".format(i, len(curve_path)))
-                curve_path.remove(i)
-
+                ## no IK solution found, remove point
+                print("No IK solution is found at point {} (out of {})".format(i, n_pts))
+                curve_path.pop(i)
             else:
-                q_knots.insert(0, copy.deepcopy(q))
+                q_knots.insert(0, q)
 
         print("solved curve_path: {}".format(len(curve_path)))
         ## solution found, now execute
@@ -230,14 +231,16 @@ class robot_winding():
         #                                      [ 0, -1,  0,  0.100],\
         #                                      [ 0,  0,  0,  1    ]]))
 
-        stop = pose_with_offset(stop, [0, 0, -0.02])
+        # stop = pose_with_offset(stop, [0, 0, -0.02])
+        # stop = pose_with_offset(stop, [0, -0.02, 0])
 
         self.marker.show(stop)
         # self.move2pt(stop, j_start_value)
 
         ## based on the frame of link_7 (not the frame of the rod)
         ## z pointing toward right
-        start = pose_with_offset(stop, [0, 0, -0.08])
+        # start = pose_with_offset(stop, [0, 0, -0.08])
+        start = pose_with_offset(stop, [0, 0, -0.06])
         # print('starting point to grasp is:{}\n'.format(start))
 
         # self.marker.show(start)
