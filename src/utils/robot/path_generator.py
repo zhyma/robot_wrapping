@@ -3,6 +3,7 @@
 from math import pi, sin, cos, sqrt, atan2
 import numpy as np
 import sys
+import copy
 
 import rospy
 from nav_msgs.msg import Path
@@ -16,8 +17,6 @@ class path_generator():
 
     def __init__(self):
         self.waypoint_pub = rospy.Publisher('yumi_waypoint', Path, queue_size=1, latch=True)
-        ...
-    
 
     def generate_nusadua(self, t_rod, l, r, step_size):
         ## For left hand
@@ -133,18 +132,19 @@ class path_generator():
         
         return path
 
-    def generate_line(self, start = [0, 0, 0], stop=[0, 0, 0]):
+    def generate_line(self, start, stop, n_samples = 10):
         path = []
 
-        dist = sqrt((stop[0]-start[0])**2 + (stop[1]-start[1])**2 + (stop[2]-start[2])**2)
-        no_of_points = int(dist/0.05) + 1
-        print('number of waypoints are: {0}'.format(no_of_points))
-        dx = (stop[0]-start[0])/(no_of_points - 1)
-        dy = (stop[1]-start[1])/(no_of_points - 1)
-        dz = (stop[2]-start[2])/(no_of_points - 1)
+        [x0, y0, z0] = [start.position.x, start.position.y, start.position.z]
+        [x1, y1, z1] = [ stop.position.x,  stop.position.y,  stop.position.z]
 
-        for i in range(no_of_points):
-            path.append([start[0]+i*dx, start[1]+i*dx, start[2]+i*dx])
+
+        for i in range(n_samples):
+            pose = copy.deepcopy(stop)
+            pose.position.x = x0+(x1-x0)*i/(n_samples-1)
+            pose.position.y = y0+(y1-y0)*i/(n_samples-1)
+            pose.position.z = z0+(z1-z0)*i/(n_samples-1)
+            path.append(pose)
 
         return path
 

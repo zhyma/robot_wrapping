@@ -158,7 +158,7 @@ class robot_winding():
         ##-------------------##
         ## generate spiral here, two parameters to tune: advance and l
         
-        advance = 0.005 ## millimeter
+        advance = -0.01 ## millimeter
         r = rod.info.r
         print("rod's radius is: {}".format(r))
         l = 2*pi*r + 0.10
@@ -226,7 +226,7 @@ class robot_winding():
         j_traj = interpolation(q_knots, n_samples, dt)
 
         ## from default position move to the rope starting point
-        stop = pose_with_offset(curve_path[0], [0, -0.04, 0])
+        stop = pose_with_offset(curve_path[0], [-0.005, -0.04, 0])
 
         self.marker.show(stop)
         ## based on the frame of link_7 (not the frame of the rod)
@@ -254,7 +254,23 @@ class robot_winding():
         stop = pose_with_offset(curve_path[-1], [0, 0.06, 0])
         self.marker.show(stop)
         if True:
-            self.move2pt(stop, j_start_value - 2*pi)
+            # self.move2pt(stop, j_start_value - 2*pi)
+            line_path = self.pg.generate_line(start, stop)
+
+            n_pts = len(line_path)
+            q_knots = []
+            for i in range(n_pts-1, -1, -1):
+                q = self.yumi.ik_with_restrict(0, line_path[i], j_start_value - 2*pi)
+                if q==-1:
+                    ## no IK solution found, remove point
+                    print("No IK solution is found at point {} (out of {})".format(i, n_pts))
+                    line_path.pop(i)
+                else:
+                    q_knots.insert(0, q)
+
+            j_traj = interpolation(q_knots, 2, 0.2)
+            self.j_ctrl.exec(0, j_traj, 0.2)
+
             rospy.sleep(2)
             self.gripper.l_open()
 
