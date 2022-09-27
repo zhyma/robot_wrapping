@@ -18,6 +18,7 @@ class path_generator():
         self.waypoint_pub = rospy.Publisher('yumi_waypoint', Path, queue_size=1, latch=True)
         ...
     
+
     def generate_nusadua(self, t_rod, l, r, step_size):
         ## For left hand
         ## curve on x-z plane
@@ -42,8 +43,8 @@ class path_generator():
             x = r*cos(t)
             z = r*sin(t)
             ## based on the world coordinate
-            xr  = x-(l -a*(2*pi-t) -t*r)*sin(t) * ( 1)
-            zr  = z+(l -a*(2*pi-t) -t*r)*cos(t) * (-1)
+            xr  = x-(l -a*(t) -t*r)*sin(t) * ( 1)
+            zr  = z+(l -a*(t) -t*r)*cos(t) * (-1)
             adv = step_size * i/n_samples
 
             # ## Use circle to test

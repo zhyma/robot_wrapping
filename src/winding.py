@@ -173,7 +173,7 @@ class robot_winding():
         print("====starting the first wrap")
         rod_center = copy.deepcopy(t_rod2world)
         # t_wrapping = tf_with_offset(rod_center, [-0.02, -0.06, -0.02])
-        t_wrapping = tf_with_offset(rod_center, [-0.00, -0.02, -0.0])
+        t_wrapping = tf_with_offset(rod_center, [-0.00, -0.02, -0.02])
         # for i in range(3):
         #     center_t[i, 3] = gripper_pos[i]
         while cnt < 1:
@@ -194,8 +194,6 @@ class robot_winding():
         j_start_value = 2*pi-2.5
 
         ## preparing the joint space trajectory
-        n_samples = 10
-        dt = 2
         q_knots = []
         last_j_angle = 0.0## wrapping
 
@@ -207,6 +205,7 @@ class robot_winding():
         n_pts = len(curve_path)
         print("planned curve_path: {}".format(n_pts))
         for i in range(n_pts-1, -1, -1):
+        # for i in range(1, -1, -1):
             # print('waypoint %d is: '%i, end='')
             # print(q0[0])
             last_j_angle = j_start_value - 2*pi/n_pts *i
@@ -220,16 +219,18 @@ class robot_winding():
 
         print("solved curve_path: {}".format(len(curve_path)))
         ## solution found, now execute
+        n_samples = 10
+        dt = 2
         j_traj = interpolation(q_knots, n_samples, dt)
 
         ## from default position move to the rope starting point
         # print(pose2transformation(curve_path[0]))
-        stop = copy.deepcopy(curve_path[0])
+        # stop = copy.deepcopy(curve_path[0])
 
-        # stop = transformation2pose(np.array([[-1,  0,  0,  0.441],\
-        #                                      [ 0,  0, -1,  0.010],\
-        #                                      [ 0, -1,  0,  0.100],\
-        #                                      [ 0,  0,  0,  1    ]]))
+        stop = transformation2pose(np.array([[-1,  0,  0,  0.411],\
+                                             [ 0,  0, -1,  0.010],\
+                                             [ 0, -1,  0,  0.100],\
+                                             [ 0,  0,  0,  1    ]]))
 
         # stop = pose_with_offset(stop, [0, 0, -0.02])
         # stop = pose_with_offset(stop, [0, -0.02, 0])
