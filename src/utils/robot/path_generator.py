@@ -37,7 +37,7 @@ class path_generator():
 
         a = 0
 
-        for i in range(n_samples):
+        for i in range(n_samples+1):
             
             t = (2+0)*pi/n_samples * i
             x = r*cos(t)

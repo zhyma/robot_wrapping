@@ -134,7 +134,7 @@ class robot_winding():
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
 
         # self.reset()
-        self.j_ctrl.robot_default_l_low()
+        # self.j_ctrl.robot_default_l_low()
 
         ## recover rod's information from the saved data
         rod = rod_finder(self.scene)
@@ -204,7 +204,9 @@ class robot_winding():
         ## do the ik from the last point, remove those with no solution.
         n_pts = len(curve_path)
         print("planned curve_path: {}".format(n_pts))
-        for i in range(n_pts-1, -1, -1):
+
+        # skip the first waypoint (theta=0) and the last one (theta=2\pi)
+        for i in range(n_pts-2, 0, -1):
         # for i in range(1, -1, -1):
             # print('waypoint %d is: '%i, end='')
             # print(q0[0])
@@ -224,27 +226,12 @@ class robot_winding():
         j_traj = interpolation(q_knots, n_samples, dt)
 
         ## from default position move to the rope starting point
-        # print(pose2transformation(curve_path[0]))
-        # stop = copy.deepcopy(curve_path[0])
-
-        stop = transformation2pose(np.array([[-1,  0,  0,  0.411],\
-                                             [ 0,  0, -1,  0.010],\
-                                             [ 0, -1,  0,  0.100],\
-                                             [ 0,  0,  0,  1    ]]))
-
-        # stop = pose_with_offset(stop, [0, 0, -0.02])
-        # stop = pose_with_offset(stop, [0, -0.02, 0])
+        stop = pose_with_offset(curve_path[0], [0, -0.04, 0])
 
         self.marker.show(stop)
-        # self.move2pt(stop, j_start_value)
-
         ## based on the frame of link_7 (not the frame of the rod)
         ## z pointing toward right
-        # start = pose_with_offset(stop, [0, 0, -0.08])
         start = pose_with_offset(stop, [0, 0, -0.06])
-        # print('starting point to grasp is:{}\n'.format(start))
-
-        # self.marker.show(start)
 
         print('move closer to the rod')
         if True:
@@ -253,37 +240,31 @@ class robot_winding():
             self.gripper.l_close()
             rospy.sleep(2)
 
-        # self.move2pt(curve_path[0], j_start_value)
+        print('wrapping...')
         if True:
             # print('send trajectory to actionlib')
             self.j_ctrl.exec(0, j_traj, 0.2)
             rospy.sleep(2)
             ## after release the rope, continue to move down (straighten out the rope)
+            # self.gripper.l_open()
+
+        print('straighten out the rope')
+        ## straighten out the rope
+        start = curve_path[-2]
+        stop = pose_with_offset(curve_path[-1], [0, 0.06, 0])
+        self.marker.show(stop)
+        if True:
+            self.move2pt(stop, j_start_value - 2*pi)
+            rospy.sleep(2)
             self.gripper.l_open()
 
-        start = curve_path[-1]
-        # stop = pose_with_offset(start, [0, 0.08, 0])
-        # stop = pose_with_offset(start, [2*r, 0.08, 0])
-        stop = copy.deepcopy(start)
-        stop.position.x -= 2*r
-        ## ik will return -1 (no solution) if lower than 0.1
-        stop.position.z = 0.1
-
-        # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, start, last_j_angle))
-        # rospy.sleep(2)
-        # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, stop, last_j_angle))
-        if execute:
-            self.move_p2p(start, stop, last_j_angle)
-            rospy.sleep(2)
-
+        print('move out of the view')
+        ## left grippermove to the side
         start = copy.deepcopy(stop)
         stop  = pose_with_offset(start, [0, 0, -0.08])
 
-        # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, start, last_j_angle))
-        # rospy.sleep(2)
-        # self.j_ctrl.robot_setjoint(0, self.yumi.ik_with_restrict(0, stop, last_j_angle))
-        if execute:
-            self.move_p2p(start, stop, last_j_angle)
+        if True:
+            self.move_p2p(start, stop, j_start_value - 2*pi)
             rospy.sleep(2)
 
     def reset(self):
