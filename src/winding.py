@@ -133,7 +133,7 @@ class robot_winding():
         ##---- winding task entrance here ----##
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
 
-        # self.reset()
+        self.reset()
         # self.j_ctrl.robot_default_l_low()
 
         ## recover rod's information from the saved data
@@ -168,7 +168,7 @@ class robot_winding():
         ## let's do a few rounds
         cnt = 0
 
-        # self.rope_holding()
+        self.rope_holding()
 
         print("====starting the first wrap")
         rod_center = copy.deepcopy(t_rod2world)
@@ -176,14 +176,14 @@ class robot_winding():
         t_wrapping = tf_with_offset(rod_center, [-0.00, -0.02, -0.02])
         # for i in range(3):
         #     center_t[i, 3] = gripper_pos[i]
-        while cnt < 1:
+        while cnt < 3:
             ## find the left most wrap on the rod
             cnt += 1
             self.step(t_wrapping, r, l, advance, debug = True, execute=False)
             # t_wrapping = tf_with_offset(t_wrapping, [0, advance, 0])
         
         # self.j_ctrl.robot_default_l_low()
-        # self.reset()
+        self.reset()
 
     def step(self, center_t, r, l, advance, debug = False, execute=False):
         curve_path = self.pg.generate_nusadua(center_t, l, r, advance)
@@ -194,7 +194,7 @@ class robot_winding():
         j_start_value = 2*pi-2.5
 
         ## preparing the joint space trajectory
-        q_knots = []
+        q1_knots = []
         last_j_angle = 0.0## wrapping
 
         # for i in range(len(curve_path)):
@@ -217,13 +217,13 @@ class robot_winding():
                 print("No IK solution is found at point {} (out of {})".format(i, n_pts))
                 curve_path.pop(i)
             else:
-                q_knots.insert(0, q)
+                q1_knots.insert(0, q)
 
         print("solved curve_path: {}".format(len(curve_path)))
         ## solution found, now execute
         n_samples = 10
         dt = 2
-        j_traj = interpolation(q_knots, n_samples, dt)
+        j_traj = interpolation(q1_knots, n_samples, dt)
 
         ## from default position move to the rope starting point
         stop = pose_with_offset(curve_path[0], [-0.005, -0.04, 0])
@@ -244,31 +244,34 @@ class robot_winding():
         if True:
             # print('send trajectory to actionlib')
             self.j_ctrl.exec(0, j_traj, 0.2)
-            rospy.sleep(2)
             ## after release the rope, continue to move down (straighten out the rope)
             # self.gripper.l_open()
 
         print('straighten out the rope')
         ## straighten out the rope
         start = curve_path[-2]
-        stop = pose_with_offset(curve_path[-1], [0, 0.06, 0])
-        self.marker.show(stop)
+        stop = pose_with_offset(curve_path[-1], [0, 0.08, 0])
+        self.marker.show(start)
         if True:
             # self.move2pt(stop, j_start_value - 2*pi)
             line_path = self.pg.generate_line(start, stop)
 
+            self.pg.publish_waypoints(line_path)
+
             n_pts = len(line_path)
-            q_knots = []
-            for i in range(n_pts-1, -1, -1):
+            q2_knots = []
+            for i in range(n_pts-1, 0, -1):
                 q = self.yumi.ik_with_restrict(0, line_path[i], j_start_value - 2*pi)
                 if q==-1:
                     ## no IK solution found, remove point
                     print("No IK solution is found at point {} (out of {})".format(i, n_pts))
                     line_path.pop(i)
                 else:
-                    q_knots.insert(0, q)
+                    q2_knots.insert(0, q)
 
-            j_traj = interpolation(q_knots, 2, 0.2)
+            q2_knots.insert(0, q1_knots[-1])
+
+            j_traj = interpolation(q2_knots, 2, 0.2)
             self.j_ctrl.exec(0, j_traj, 0.2)
 
             rospy.sleep(2)
