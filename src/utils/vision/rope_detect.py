@@ -101,8 +101,7 @@ class rope_detect:
             
         return new_tf
 
-
-    def gp_estimation(self, img, l=100, plt_debug=False):
+    def get_ropes(self):
         if self.info is None:
             print('No rope information, working on one')
             self.get_rope_info()
@@ -129,16 +128,27 @@ class rope_detect:
         full_mask = get_rope_mask(img.shape[:2], crop_corners, gray, feature_mask)
         r = find_ropes(full_mask)
 
-        l_expect = l
-        ## get back the grasping point
-        gp = find_gp(r[0], self.rod_info.box2d, l_expect)
-
         self.masked_img = copy.deepcopy(img)
         if r is not None:
             for i in r[1].link:
                 self.masked_img = cv2.circle(self.masked_img, (i[0], i[1]), radius=2, color=(0, 255, 0), thickness=-1)
             for i in r[0].link:
                 self.masked_img = cv2.circle(self.masked_img, (i[0], i[1]), radius=2, color=(255, 0, 0), thickness=-1)
+
+        return r
+
+    def gp_estimation(self, img, end=0, l=100):
+        ## end: active end (for wrapping) 0 or passive end (for holding) 1
+        ## l measured in pixels
+        
+        r = self.get_ropes()
+
+        l_expect = l
+        ## get back the grasping point
+        if end==1:
+            gp = find_gp(r[1], self.rod_info.box2d, l_expect)
+        else:
+            gp = find_gp(r[0], self.rod_info.box2d, l_expect)
 
         #====
 
@@ -166,11 +176,48 @@ class rope_detect:
             dy = dx_p * self.scale
             dz = -dy_p * self.scale
 
-            x = self.rod_info.pose.position.x + self.rod_info.r
+            if end==1:
+                x = self.rod_info.pose.position.x - self.rod_info.r
+            else:
+                x = self.rod_info.pose.position.x + self.rod_info.r
             y = self.rod_info.pose.position.y + dy
             z = self.rod_info.pose.position.z + dz
             print("found grasping point: %.3f, %.3f, %.3f"%(x, y, z))
             return [x, y, z]
+
+    def y_estimation(self, img, z, end=0):
+        ## end: active end (for wrapping) 0 or passive end (for holding) 1
+        ## given z, find the corresponding y along the rope
+        dz = z - self.rod_info.pose.position.z
+
+
+
+        r = self.get_ropes()
+
+        ## return estimated grasping point position
+        # center of the rectangle, in pixel
+        xc_p = (self.rod_info.box2d[2][0] + self.rod_info.box2d[0][0])/2
+        yc_p = (self.rod_info.box2d[2][1] + self.rod_info.box2d[0][1])/2
+
+        dx_p = gp[0] - xc_p
+        dy_p = gp[1] - yc_p
+
+        self.masked_img = cv2.circle(self.masked_img, (gp[0], gp[1]), radius=5, color=(0, 0, 255), thickness=-1)
+        self.pub.publish(self.bridge.cv2_to_imgmsg(self.masked_img, encoding='passthrough'))
+
+        # estimate distance, actual, measured in meters
+        dy = dx_p * self.scale
+        dz = -dy_p * self.scale
+
+        if end==1:
+            x = self.rod_info.pose.position.x - self.rod_info.r
+        else:
+            x = self.rod_info.pose.position.x + self.rod_info.r
+        y = self.rod_info.pose.position.y + dy
+
+        print("found grasping point: %.3f, %.3f, %.3f"%(x, y, z))
+        return [x, y, z]
+
 
 
 if __name__ == '__main__': 

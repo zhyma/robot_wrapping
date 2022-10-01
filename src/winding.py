@@ -68,6 +68,11 @@ class robot_winding():
 
         self.marker = marker()
 
+        self.ic = image_converter()
+        while self.ic.has_data==False:
+            print('waiting for RGB data')
+            rospy.sleep(0.1)
+
     def move2pt(self, point, j6_value, group = 0):
         q = self.yumi.ik_with_restrict(group, point, j6_value)
         if type(q) is int:
@@ -95,6 +100,8 @@ class robot_winding():
                                               [ 0,  0, 1, -0.26],\
                                               [ 0, -1, 0, 0.12 ],\
                                               [ 0,  0, 0, 1    ]]))
+
+        ## find the grasping point along y-axis
 
         stop = transformation2pose(np.array([[ 1,  0, 0, 0.35 ],\
                                              [ 0,  0, 1, -0.23],\
@@ -160,20 +167,23 @@ class robot_winding():
         
         advance = -0.01 ## millimeter
         r = rod.info.r
-        print("rod's radius is: {}".format(r))
+        print("rod's radius is:{}".format(r))
         l = 2*pi*r + 0.10
-        print('Estimated L is {}'.format(l))
+        print('Estimated L is:{}'.format(l))
         # l = 100 ## use pixel as the unit, not meters
+
+        print("====starting the first wrap")
+        rod_center = copy.deepcopy(t_rod2world)
+        # t_wrapping = tf_with_offset(rod_center, [0, -0.02, 0])
+        t_wrapping = rope.find_frontier(self.ic.cv_image, rod_center)
 
         ## let's do a few rounds
         cnt = 0
 
-        self.rope_holding()
+        point = rope.gp_estimation(self.ic.cv_image, l=300, plt_debug=True)
 
-        print("====starting the first wrap")
-        rod_center = copy.deepcopy(t_rod2world)
-        # t_wrapping = tf_with_offset(rod_center, [-0.02, -0.06, -0.02])
-        t_wrapping = tf_with_offset(rod_center, [-0.00, -0.02, -0.02])
+        # self.rope_holding()
+
         # for i in range(3):
         #     center_t[i, 3] = gripper_pos[i]
         while cnt < 3:
@@ -185,7 +195,7 @@ class robot_winding():
         # self.j_ctrl.robot_default_l_low()
         self.reset()
 
-    def step(self, center_t, r, l, advance, debug = False, execute=False):
+    def step(self, center_t, r, l, advance, debug = False, execute=True):
         curve_path = self.pg.generate_nusadua(center_t, l, r, advance)
 
         self.pg.publish_waypoints(curve_path)
@@ -234,14 +244,14 @@ class robot_winding():
         start = pose_with_offset(stop, [0, 0, -0.06])
 
         print('move closer to the rod')
-        if True:
+        if execute:
             self.move_p2p(start, stop, j_start_value)
             ## grabbing the rope
             self.gripper.l_close()
             rospy.sleep(2)
 
         print('wrapping...')
-        if True:
+        if execute:
             # print('send trajectory to actionlib')
             self.j_ctrl.exec(0, j_traj, 0.2)
             ## after release the rope, continue to move down (straighten out the rope)
@@ -252,7 +262,7 @@ class robot_winding():
         start = curve_path[-2]
         stop = pose_with_offset(curve_path[-1], [0, 0.08, 0])
         self.marker.show(start)
-        if True:
+        if execute:
             # self.move2pt(stop, j_start_value - 2*pi)
             line_path = self.pg.generate_line(start, stop)
 
@@ -282,7 +292,7 @@ class robot_winding():
         start = copy.deepcopy(stop)
         stop  = pose_with_offset(start, [0, 0, -0.08])
 
-        if True:
+        if execute:
             self.move_p2p(start, stop, j_start_value - 2*pi)
             rospy.sleep(2)
 

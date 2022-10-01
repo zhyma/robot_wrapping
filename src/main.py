@@ -60,6 +60,7 @@ if __name__ == '__main__':
     menu += '6' + '. train 3 wraps\n'
     menu += '7' + '. demo current parameters\n'
     menu += '0. exit\n'
+    menu += 'Your input: '
     while run:
         choice = input(menu)
         if choice in ['3', '5']:
