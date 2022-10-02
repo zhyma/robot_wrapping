@@ -77,6 +77,7 @@ def bfs(img, start, connections, skip_list):
                 ## no other frontier node left, stop searching
                 search = False
     
+    ## rope is [[x0,y0],[x1,y1],...,[xn,yn]]
     rope = []
     i_node = frontier[0]
     while i_node.parent is not None:

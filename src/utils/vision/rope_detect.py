@@ -101,7 +101,7 @@ class rope_detect:
             
         return new_tf
 
-    def get_ropes(self):
+    def get_ropes(self, img):
         if self.info is None:
             print('No rope information, working on one')
             self.get_rope_info()
@@ -141,7 +141,7 @@ class rope_detect:
         ## end: active end (for wrapping) 0 or passive end (for holding) 1
         ## l measured in pixels
         
-        r = self.get_ropes()
+        r = self.get_ropes(img)
 
         l_expect = l
         ## get back the grasping point
@@ -188,26 +188,31 @@ class rope_detect:
     def y_estimation(self, img, z, end=0):
         ## end: active end (for wrapping) 0 or passive end (for holding) 1
         ## given z, find the corresponding y along the rope
-        dz = z - self.rod_info.pose.position.z
 
-
-
-        r = self.get_ropes()
-
-        ## return estimated grasping point position
         # center of the rectangle, in pixel
         xc_p = (self.rod_info.box2d[2][0] + self.rod_info.box2d[0][0])/2
         yc_p = (self.rod_info.box2d[2][1] + self.rod_info.box2d[0][1])/2
 
+        dz = z - self.rod_info.pose.position.z
+        dy_p = -dz/self.scale
+        y_p = int(yc_p + dy_p)
+
+        r = self.get_ropes(img)
+        gp = [-1, y_p]
+        dist = 10e6
+        for i in r[end].link:
+            if abs(i[1]-y_p) < dist:
+                dist = abs(i[1]-y_p)
+                gp[0] = i[0]
+
+        ## return estimated grasping point position
         dx_p = gp[0] - xc_p
-        dy_p = gp[1] - yc_p
+        ## estimate distance, actual, measured in meters
+        dy = dx_p * self.scale
+
 
         self.masked_img = cv2.circle(self.masked_img, (gp[0], gp[1]), radius=5, color=(0, 0, 255), thickness=-1)
         self.pub.publish(self.bridge.cv2_to_imgmsg(self.masked_img, encoding='passthrough'))
-
-        # estimate distance, actual, measured in meters
-        dy = dx_p * self.scale
-        dz = -dy_p * self.scale
 
         if end==1:
             x = self.rod_info.pose.position.x - self.rod_info.r

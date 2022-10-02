@@ -180,20 +180,30 @@ class robot_winding():
         ## let's do a few rounds
         cnt = 0
 
-        point = rope.gp_estimation(self.ic.cv_image, l=300, plt_debug=True)
+        ## find the grasping point of the fix end first
+        pos = rope.y_estimation(self.ic.cv_image, 0.12, end=1)
+        print(pos)
 
-        # self.rope_holding()
+        test_pose = transformation2pose(np.array([[ 1,  0, 0, pos[0]],\
+                                                  [ 0,  0, 1, pos[1]-0.14],\
+                                                  [ 0, -1, 0, pos[2]],\
+                                                  [ 0,  0, 0, 1    ]]))
+        self.move2pt(test_pose, -0.5, group = 1)
 
-        # for i in range(3):
-        #     center_t[i, 3] = gripper_pos[i]
-        while cnt < 3:
-            ## find the left most wrap on the rod
-            cnt += 1
-            self.step(t_wrapping, r, l, advance, debug = True, execute=False)
-            # t_wrapping = tf_with_offset(t_wrapping, [0, advance, 0])
+        # point = rope.gp_estimation(self.ic.cv_image, l=300)
+
+        # # self.rope_holding()
+
+        # # for i in range(3):
+        # #     center_t[i, 3] = gripper_pos[i]
+        # while cnt < 3:
+        #     ## find the left most wrap on the rod
+        #     cnt += 1
+        #     self.step(t_wrapping, r, l, advance, debug = True, execute=False)
+        #     # t_wrapping = tf_with_offset(t_wrapping, [0, advance, 0])
         
-        # self.j_ctrl.robot_default_l_low()
-        self.reset()
+        # # self.j_ctrl.robot_default_l_low()
+        # self.reset()
 
     def step(self, center_t, r, l, advance, debug = False, execute=True):
         curve_path = self.pg.generate_nusadua(center_t, l, r, advance)
