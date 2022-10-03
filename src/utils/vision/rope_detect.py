@@ -137,18 +137,19 @@ class rope_detect:
 
         return r
 
-    def gp_estimation(self, img, end=0, l=100):
+    def gp_estimation(self, img, end=0, l=0.15):
         ## end: active end (for wrapping) 0 or passive end (for holding) 1
         ## l measured in pixels
+        ## anything ends with "p" means pixel space
         
         r = self.get_ropes(img)
 
-        l_expect = l
+        l_expect_p = l/self.scale
         ## get back the grasping point
         if end==1:
-            gp = find_gp(r[1], self.rod_info.box2d, l_expect)
+            gp = find_gp(r[1], self.rod_info.box2d, l_expect_p)
         else:
-            gp = find_gp(r[0], self.rod_info.box2d, l_expect)
+            gp = find_gp(r[0], self.rod_info.box2d, l_expect_p)
 
         #====
 
@@ -188,6 +189,7 @@ class rope_detect:
     def y_estimation(self, img, z, end=0):
         ## end: active end (for wrapping) 0 or passive end (for holding) 1
         ## given z, find the corresponding y along the rope
+        ## anything ends with "p" means pixel space
 
         # center of the rectangle, in pixel
         xc_p = (self.rod_info.box2d[2][0] + self.rod_info.box2d[0][0])/2
