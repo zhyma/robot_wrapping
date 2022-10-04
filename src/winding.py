@@ -94,48 +94,45 @@ class robot_winding():
         else:
             self.j_ctrl.robot_setjoint(group, q_stop)
 
+    def pts2qs(self, pts, j_start_value, d_j):
+        ## solve each workspace point to joint values
+        q_knots = []
+        n_pts = len(pts)
+        last_j_angle = j_start_value + d_j*(n_pts-1)
+        for i in range(n_pts-1, -1, -1):
+            q = self.yumi.ik_with_restrict(0, pts[i], last_j_angle)
+            last_j_angle -= d_j
+            if q==-1:
+                ## no IK solution found, remove point
+                print("No IK solution is found at point {} (out of {})".format(i, n_pts))
+                # curve_path.pop(i)
+            else:
+                q_knots.insert(0, q)
+
+        return q_knots
+
     def rope_holding(self, z):
-        ## go to the rope
+        ## go to the rope's fixed end
 
-        ## by given the expected z value
+        ## by given the expected z=0.12 value
         ## find the grasping point along y-axis
-        pos = self.rope.y_estimation(self.ic.cv_image, 0.12, end=1)
+        pos = self.rope.y_estimation(self.ic.cv_image, z, end=1)
 
-        stop = transformation2pose(np.array([[ 1,  0, 0, pos[0]-0.04],\
-                                             [ 0,  0, 1, pos[1]-0.14],\
+        stop = transformation2pose(np.array([[ 1,  0, 0, pos[0]],\
+                                             [ 0,  0, 1, pos[1]],\
                                              [ 0, -1, 0, pos[2]],\
                                              [ 0,  0, 0, 1    ]]))
-
-        start = transformation2pose(np.array([[ 1,  0, 0, pos[0]-0.04],\
-                                              [ 0,  0, 1, pos[1]-0.14-0.03],\
-                                              [ 0, -1, 0, pos[2]],\
-                                              [ 0,  0, 0, 1    ]]))
+        ## -0.04 is the offset for better capturing (opening)
+        ## -0.14 is the offset for fingers (finger tip to finger belly)
+        stop = pose_with_offset(stop, [-0.04, 0, -0.14])
+        start = pose_with_offset(stop, [0, 0, -0.03])
 
         ## group=1, right
         self.move_p2p(start, stop, -0.5, group=1)
-
         self.gripper.r_close()
-
         rospy.sleep(2)
-        hold = transformation2pose(np.array([[ 1,  0, 0, pos[0]-0.04-0.03 ],\
-                                             [ 0,  0, 1, pos[1]-0.14-0.03],\
-                                             [ 0, -1, 0, pos[2]],\
-                                             [ 0,  0, 0, 1    ]]))
 
-        # delta = [i/100 for i in range(0, 6, 1)]
-        # for ix in delta:
-        #     for iy in delta:
-        #         for iz in delta:
-        #             point = copy.deepcopy(hold)
-        #             point.position.x -= ix
-        #             point.position.y -= iy
-        #             point.position.z -= iz
-        #             q = self.yumi.ik_with_restrict(1, point, -0.5)
-        #             if type(q) is int:
-        #                 # print('No IK found')
-        #                 ...
-        #             else:
-        #                 print("With in range [{}, {}, {}]".format(0.35-ix, -0.23-iy, 0.12-iz))
+        hold = pose_with_offset(stop, [-0.03, 0, -0.03])
 
         print("move out of the other finger's workspace")
         self.move2pt(hold, -0.5, group=1)
@@ -146,7 +143,6 @@ class robot_winding():
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
 
         self.reset()
-        # self.j_ctrl.robot_default_l_low()
 
         ## recover rod's information from the saved data
         rod = rod_finder(self.scene)
@@ -170,7 +166,7 @@ class robot_winding():
         ##-------------------##
         ## generate spiral here, two parameters to tune: advance and l
         
-        advance = -0.01 ## millimeter
+        advance = 0 ## meter
         r = rod.info.r
         print("rod's radius is:{}".format(r))
         # l = 2*pi*r + 0.10
@@ -178,31 +174,26 @@ class robot_winding():
         l=0.18
 
         print("====starting the first wrap")
-        rod_center = copy.deepcopy(t_rod2world)
-        # t_wrapping = tf_with_offset(rod_center, [0, -0.02, 0])
-        t_wrapping = self.rope.find_frontier(self.ic.cv_image, rod_center)
-
-        ## let's do a few rounds
-        cnt = 0
+        # rod_center = copy.deepcopy(t_rod2world)
+        t_wrapping = self.rope.find_frontier(self.ic.cv_image, t_rod2world)
 
         ## find the grasping point of the fix end first
-        pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
-        print("estimated right-hand z value: {}".format(pos[2]))
-        self.rope_holding(pos[2]-0.02)
+        # pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
+        # print("estimated right-hand z value: {}".format(pos[2]))
+        ## Left and right arm are not mirrored. The left hand is having some problem
+        ## with reaching points that are too low.
+        self.rope_holding(0.12)
 
-        # for i in range(3):
-        #     center_t[i, 3] = gripper_pos[i]
-        while cnt < 3:
+        ## let's do a few rounds
+        for i in range(1):
             ## find the left most wrap on the rod
-            cnt += 1
             self.step(t_wrapping, r, l, advance, debug = True, execute=True)
             # t_wrapping = tf_with_offset(t_wrapping, [0, advance, 0])
         
-        # # self.j_ctrl.robot_default_l_low()
         self.reset()
 
     def step(self, center_t, r, l, advance, debug = False, execute=True):
-        curve_path = self.pg.generate_nusadua(center_t, l, r, advance)
+        curve_path = self.pg.generate_nusadua(center_t, r, l, advance)
 
         self.pg.publish_waypoints(curve_path)
 
@@ -219,27 +210,17 @@ class robot_winding():
         q1_knots = []
         last_j_angle = 0.0## wrapping
 
-        # for i in range(len(curve_path)):
-        #     print(curve_path[i])
         print('IK for spiral')
 
         ## do the ik from the last point, remove those with no solution.
         n_pts = len(curve_path)
         print("planned curve_path: {}".format(n_pts))
 
+        d_j = -2*pi/n_pts
+        print("d_j is {}".format(d_j))
         # skip the first waypoint (theta=0) and the last one (theta=2\pi)
-        for i in range(n_pts-2, 0, -1):
-        # for i in range(1, -1, -1):
-            # print('waypoint %d is: '%i, end='')
-            # print(q0[0])
-            last_j_angle = j_start_value - 2*pi/n_pts *i
-            q = self.yumi.ik_with_restrict(0, curve_path[i], last_j_angle)
-            if q==-1:
-                ## no IK solution found, remove point
-                print("No IK solution is found at point {} (out of {})".format(i, n_pts))
-                curve_path.pop(i)
-            else:
-                q1_knots.insert(0, q)
+        q1_knots = self.pts2qs(curve_path[1:-1], j_start_value+d_j, d_j)
+        print("sovled q1:{}".format(len(q1_knots)))
 
         print("solved curve_path: {}".format(len(curve_path)))
         ## solution found, now execute
@@ -265,45 +246,31 @@ class robot_winding():
         self.marker.show(curve_path[0])
         ## based on the frame of link_7 (not the frame of the rod)
         ## z pointing toward right
-        start = pose_with_offset(stop, [-0.01, 0, -0.06])
+        entering = pose_with_offset(stop, [-0.01, 0, -0.06])
 
         print('move closer to the rope')
         if execute:
-            self.move_p2p(start, stop, j_start_value)
+            self.move_p2p(entering, stop, j_start_value)
             ## grabbing the rope
             self.gripper.l_close()
             rospy.sleep(2)
 
         print('wrapping...')
         if execute:
-            # print('send trajectory to actionlib')
             self.j_ctrl.exec(0, j_traj, 0.2)
-            ## after release the rope, continue to move down (straighten out the rope)
-            # self.gripper.l_open()
 
         print('straighten out the rope')
         ## straighten out the rope
         start = curve_path[-2]
-        stop = pose_with_offset(curve_path[-1], [0, 0.08, 0])
+        stop = pose_with_offset(curve_path[-1], [0, 0.10, 0])
         self.marker.show(start)
         if execute:
             # self.move2pt(stop, j_start_value - 2*pi)
             line_path = self.pg.generate_line(start, stop)
 
-            self.pg.publish_waypoints(line_path)
+            self.pg.publish_waypoints(curve_path + line_path)
 
-            n_pts = len(line_path)
-            q2_knots = []
-            for i in range(n_pts-1, 0, -1):
-                q = self.yumi.ik_with_restrict(0, line_path[i], j_start_value - 2*pi)
-                if q==-1:
-                    ## no IK solution found, remove point
-                    print("No IK solution is found at point {} (out of {})".format(i, n_pts))
-                    line_path.pop(i)
-                else:
-                    q2_knots.insert(0, q)
-
-            q2_knots.insert(0, q1_knots[-1])
+            q2_knots = self.pts2qs(line_path, j_start_value-2*pi, 0)
 
             j_traj = interpolation(q2_knots, 2, 0.2)
             self.j_ctrl.exec(0, j_traj, 0.2)
@@ -311,13 +278,12 @@ class robot_winding():
             rospy.sleep(2)
             self.gripper.l_open()
 
+
+
         print('move out of the view')
         ## left grippermove to the side
-        start = copy.deepcopy(stop)
-        stop  = pose_with_offset(start, [0, 0, -0.08])
-
         if execute:
-            self.move_p2p(start, stop, j_start_value - 2*pi)
+            self.move2pt(entering, j_start_value - 2*pi)
             rospy.sleep(2)
 
     def reset(self):

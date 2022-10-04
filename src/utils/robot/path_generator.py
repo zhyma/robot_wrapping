@@ -18,12 +18,14 @@ class path_generator():
     def __init__(self):
         self.waypoint_pub = rospy.Publisher('yumi_waypoint', Path, queue_size=1, latch=True)
 
-    def generate_nusadua(self, t_rod, l, r, step_size):
+    def generate_nusadua(self, t_rod, r, l, step_size):
         ## For left hand
         ## curve on x-z plane
         ## from 2d plane curve to world frame path: [xr, adv, yr]
         path = []
         n_samples = 12
+
+        finger_offset = 0.04
 
         ## T^{ref}_{obj}: from ref to obj
         ## t_ft2gb: Finger Tip with respect to the Gripper Base
@@ -44,17 +46,17 @@ class path_generator():
             ## based on the world coordinate
             xr  = x-(l -a*(t) -t*r)*sin(t) * ( 1)
             zr  = z+(l -a*(t) -t*r)*cos(t) * (-1)
-            adv = step_size * i/n_samples
+            adv = step_size * i/n_samples + finger_offset*(n_samples-i)/n_samples
 
             # ## Use circle to test
             # xr = (r+0.2)*sin(t)
             # yr = (r+0.2)*cos(t)
             # adv = 0
 
-            t_curve2d = np.array([[1, 0, 0, xr],\
+            t_curve2d = np.array([[1, 0, 0, xr ],\
                                   [0, 1, 0, adv],\
-                                  [0, 0, 1, zr],\
-                                  [0, 0, 0, 1]])
+                                  [0, 0, 1, zr ],\
+                                  [0, 0, 0, 1  ]])
 
             ## project the curve on the plane that perpendicular to the rod
             t_ft2world = np.dot(t_rod, t_curve2d)
