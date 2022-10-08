@@ -80,18 +80,23 @@ class rope_detect:
         mask, offset, top_edge = helix_adv_mask(cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[:,:,0], self.rod_info.box2d, self.info.hue)
         [x1, y1] = top_edge[0]
         [x2, y2] = top_edge[1]
-        a = (y2-y1)/(x2-x1)
-        b = y1-a*x1
 
         [height, width] = mask.shape
         ## find the pixel that is at right top corner, being masked, and on the top edge of the rod
         for ix in range(x2-1, x1, -1):
-            iy = int(a*ix+b)
+            for iy in range(0, height):
+                # iy = int(a*ix+b)
+                if mask[iy, ix] > 100:
+                    break
             if mask[iy, ix] > 100:
-                break
+                    break
 
         frontier_2d = [ix, iy]
+        print([x1, x2])
+        print(frontier_2d)
+        print((x1+x2)/2)
         adv = [0, self.rod_info.l * (ix-(x1+x2)/2)/(x2-x1), 0]
+        print(adv)
 
         rot = center_tf[:3, :3]
         new_tf = copy.deepcopy(center_tf)

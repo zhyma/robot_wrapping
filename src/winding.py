@@ -109,7 +109,7 @@ class robot_winding():
                 print("No IK solution is found at point {} (out of {})".format(i, n_pts))
                 # curve_path.pop(i)
             else:
-                print("point {} solved".format(i))
+                # print("point {} solved".format(i))
                 q_knots.insert(0, q)
 
         return q_knots
@@ -179,18 +179,21 @@ class robot_winding():
         print("====starting the first wrap")
         # rod_center = copy.deepcopy(t_rod2world)
         t_wrapping = self.rope.find_frontier(self.ic.cv_image, t_rod2world)
+        pose = transformation2pose(t_wrapping)
+        pose.position.z = 0.15
+        self.marker.show(pose)
 
-        ## Left and right arm are not mirrored. The left hand is having some problem
-        ## with reaching points that are too low.
-        self.rope_holding(0.12)
+        # ## Left and right arm are not mirrored. The left hand is having some problem
+        # ## with reaching points that are too low.
+        # # self.rope_holding(0.12)
 
-        ## let's do a few rounds
-        for i in range(1):
-            ## find the left most wrap on the rod
-            self.step(t_wrapping, r, l, advance, debug = True, execute=True)
-            # t_wrapping = tf_with_offset(t_wrapping, [0, advance, 0])
+        # ## let's do a few rounds
+        # for i in range(1):
+        #     ## find the left most wrap on the rod
+        #     self.step(t_wrapping, r, l, advance, debug = True, execute=True)
+        #     # t_wrapping = tf_with_offset(t_wrapping, [0, advance, 0])
         
-        self.reset()
+        # # self.reset()
 
     def step(self, center_t, r, l, advance, debug = False, execute=True):
         curve_path = self.pg.generate_nusadua(center_t, r, l, advance)
@@ -199,9 +202,10 @@ class robot_winding():
 
         finger_offset = [0, 0, -0.10]
 
-        ## Need to take the length of the finger into consideration
-        for i in range(len(curve_path)):
-            curve_path[i] = pose_with_offset(curve_path[i], finger_offset)
+        # ## Need to take the length of the finger into consideration
+        # for i in range(len(curve_path)):
+        #     # curve_path[i] = pose_with_offset(curve_path[i], finger_offset)
+        #     curve_path[i] = pose_with_offset(curve_path[i], [0, 0, 0.02])
 
         ## the arbitary value (but cannot be too arbitary) of the starting value of the last/wrist joint
         j_start_value = 2*pi-2.5
@@ -244,7 +248,7 @@ class robot_winding():
         stop = pose_with_offset(stop, finger_offset)
         # self.move2pt(stop, j_start_value)
 
-        self.marker.show(curve_path[0])
+        # self.marker.show(curve_path[0])
         ## based on the frame of link_7 (not the frame of the rod)
         ## z pointing toward right
         entering = pose_with_offset(stop, [-0.01, 0, -0.06])
@@ -256,60 +260,62 @@ class robot_winding():
             self.gripper.l_close()
             rospy.sleep(2)
 
-        print('wrapping...')
-        if execute:
-            self.j_ctrl.exec(0, j_traj, 0.2)
+        self.j_ctrl.exec(0, [j_traj[0], j_traj[1]], 0.2)
 
-        print('straighten out the rope')
-        ## straighten out the rope
-        start = curve_path[-2]
-        stop = pose_with_offset(curve_path[-1], [0, 0.10, 0])
-        self.marker.show(start)
-        if execute:
-            # self.move2pt(stop, j_stop_value)
-            line_path = self.pg.generate_line(start, stop)
+        # print('wrapping...')
+        # if execute:
+        #     self.j_ctrl.exec(0, j_traj, 0.2)
 
-            self.pg.publish_waypoints(curve_path + line_path)
+        # print('straighten out the rope')
+        # ## straighten out the rope
+        # start = curve_path[-2]
+        # stop = pose_with_offset(curve_path[-1], [0, 0.10, 0])
+        # self.marker.show(start)
+        # if execute:
+        #     # self.move2pt(stop, j_stop_value)
+        #     line_path = self.pg.generate_line(start, stop)
 
-            q2_knots = self.pts2qs(line_path, j_stop_value, 0)
+        #     self.pg.publish_waypoints(curve_path + line_path)
 
-            j_traj = interpolation(q2_knots, 2, 0.2)
-            self.j_ctrl.exec(0, j_traj, 0.2)
+        #     q2_knots = self.pts2qs(line_path, j_stop_value, 0)
 
-            rospy.sleep(2)
-            self.gripper.l_open()
+        #     j_traj = interpolation(q2_knots, 2, 0.2)
+        #     self.j_ctrl.exec(0, j_traj, 0.2)
 
-        print('move out from the grasping pose')
-        ## left grippermove to the side
-        if execute:
-            self.move2pt(entering, j_stop_value)
-            rospy.sleep(2)
+        #     rospy.sleep(2)
+        #     self.gripper.l_open()
 
-        print('push the rope back a little bit')
-        if execute:
-            pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
-            pushback_0 = transformation2pose(np.array([[0,  1, 0, entering.position.x+0.04],\
-                                                       [ 0,  0,-1, entering.position.y],\
-                                                       [-1, 0, 0, 0.12],\
-                                                       [ 0,  0, 0, 1    ]]))
+        # print('move out from the grasping pose')
+        # ## left grippermove to the side
+        # if execute:
+        #     self.move2pt(entering, j_stop_value)
+        #     rospy.sleep(2)
 
-            self.move2pt(pushback_0, j_stop_value + pi/2)
-            rospy.sleep(2)
-            pushback_1 = pose_with_offset(pushback_0, [0, 0, 0.06])
-            pushback_2 = copy.deepcopy(pushback_1)
-            pushback_2.position.y = pos[1] - finger_offset[2]
-            pushback_3 = copy.deepcopy(pushback_2)
-            pushback_3.position.x = curve_path[0].position.x
-            self.move_p2p(pushback_1, pushback_2, j_stop_value + pi/2)
-            rospy.sleep(2)
-            self.move_p2p(pushback_3, pushback_0, j_stop_value + pi/2)
-            # self.move2pt(pushback_0, j_stop_value + pi/2)
+        # print('push the rope back a little bit')
+        # if execute:
+        #     pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
+        #     pushback_0 = transformation2pose(np.array([[0,  1, 0, entering.position.x+0.04],\
+        #                                                [ 0,  0,-1, entering.position.y],\
+        #                                                [-1, 0, 0, 0.12],\
+        #                                                [ 0,  0, 0, 1    ]]))
 
-        print('move out of the view')
-        ## left grippermove to the side
-        if execute:
-            self.move2pt(entering, j_stop_value)
-            rospy.sleep(2)
+        #     self.move2pt(pushback_0, j_stop_value + pi/2)
+        #     rospy.sleep(2)
+        #     pushback_1 = pose_with_offset(pushback_0, [0, 0, 0.06])
+        #     pushback_2 = copy.deepcopy(pushback_1)
+        #     pushback_2.position.y = pos[1] - finger_offset[2]
+        #     pushback_3 = copy.deepcopy(pushback_2)
+        #     pushback_3.position.x = curve_path[0].position.x
+        #     self.move_p2p(pushback_1, pushback_2, j_stop_value + pi/2)
+        #     rospy.sleep(2)
+        #     self.move_p2p(pushback_3, pushback_0, j_stop_value + pi/2)
+        #     # self.move2pt(pushback_0, j_stop_value + pi/2)
+
+        # print('move out of the view')
+        # ## left grippermove to the side
+        # if execute:
+        #     self.move2pt(entering, j_stop_value)
+        #     rospy.sleep(2)
 
     def reset(self):
         ##-------------------##

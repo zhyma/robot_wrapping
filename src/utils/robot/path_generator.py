@@ -46,7 +46,8 @@ class path_generator():
             ## based on the world coordinate
             xr  = x-(l -a*(t) -t*r)*sin(t) * ( 1)
             zr  = z+(l -a*(t) -t*r)*cos(t) * (-1)
-            adv = advance * i/n_samples + finger_offset*(n_samples-i)/n_samples
+            # adv = advance * i/n_samples + finger_offset*(n_samples-i)/n_samples
+            adv = advance * i/n_samples
 
             # ## Use circle to test
             # xr = (r+0.2)*sin(t)
