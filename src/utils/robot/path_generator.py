@@ -18,7 +18,7 @@ class path_generator():
     def __init__(self):
         self.waypoint_pub = rospy.Publisher('yumi_waypoint', Path, queue_size=1, latch=True)
 
-    def generate_nusadua(self, t_rod, r, l, step_size):
+    def generate_nusadua(self, t_rod, r, l, advance):
         ## For left hand
         ## curve on x-z plane
         ## from 2d plane curve to world frame path: [xr, adv, yr]
@@ -46,7 +46,7 @@ class path_generator():
             ## based on the world coordinate
             xr  = x-(l -a*(t) -t*r)*sin(t) * ( 1)
             zr  = z+(l -a*(t) -t*r)*cos(t) * (-1)
-            adv = step_size * i/n_samples + finger_offset*(n_samples-i)/n_samples
+            adv = advance * i/n_samples + finger_offset*(n_samples-i)/n_samples
 
             # ## Use circle to test
             # xr = (r+0.2)*sin(t)
@@ -65,10 +65,10 @@ class path_generator():
             st = xr/sqrt(xr**2+zr**2)
             ct = zr/sqrt(xr**2+zr**2)
 
-            t_orientation = np.array([[ct, st,  0, x],\
-                                      [0, 0, -1, adv],\
-                                      [-st, ct,  0, zr],\
-                                      [0, 0,  0, 1]])
+            t_orientation = np.array([[ ct, st,  0, 0],\
+                                      [  0,  0, -1, 0],\
+                                      [-st, ct,  0, 1],\
+                                      [  0,  0,  0, 1]])
 
             t_ft2world[:3,:3] = np.dot(t_rod, t_orientation)[:3,:3]
 

@@ -100,13 +100,16 @@ class robot_winding():
         n_pts = len(pts)
         last_j_angle = j_start_value + d_j*(n_pts-1)
         for i in range(n_pts-1, -1, -1):
+            # print('point {} is\n{}\n{}'.format(i, pts[i], last_j_angle))
             q = self.yumi.ik_with_restrict(0, pts[i], last_j_angle)
+            ## reversed searching, therefore use -d_j
             last_j_angle -= d_j
             if q==-1:
                 ## no IK solution found, remove point
                 print("No IK solution is found at point {} (out of {})".format(i, n_pts))
                 # curve_path.pop(i)
             else:
+                print("point {} solved".format(i))
                 q_knots.insert(0, q)
 
         return q_knots
@@ -177,9 +180,6 @@ class robot_winding():
         # rod_center = copy.deepcopy(t_rod2world)
         t_wrapping = self.rope.find_frontier(self.ic.cv_image, t_rod2world)
 
-        ## find the grasping point of the fix end first
-        # pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
-        # print("estimated right-hand z value: {}".format(pos[2]))
         ## Left and right arm are not mirrored. The left hand is having some problem
         ## with reaching points that are too low.
         self.rope_holding(0.12)
@@ -199,12 +199,13 @@ class robot_winding():
 
         finger_offset = [0, 0, -0.10]
 
-        ##
+        ## Need to take the length of the finger into consideration
         for i in range(len(curve_path)):
             curve_path[i] = pose_with_offset(curve_path[i], finger_offset)
 
         ## the arbitary value (but cannot be too arbitary) of the starting value of the last/wrist joint
         j_start_value = 2*pi-2.5
+        j_stop_value = j_start_value - 2*pi
 
         ## preparing the joint space trajectory
         q1_knots = []
@@ -265,12 +266,12 @@ class robot_winding():
         stop = pose_with_offset(curve_path[-1], [0, 0.10, 0])
         self.marker.show(start)
         if execute:
-            # self.move2pt(stop, j_start_value - 2*pi)
+            # self.move2pt(stop, j_stop_value)
             line_path = self.pg.generate_line(start, stop)
 
             self.pg.publish_waypoints(curve_path + line_path)
 
-            q2_knots = self.pts2qs(line_path, j_start_value-2*pi, 0)
+            q2_knots = self.pts2qs(line_path, j_stop_value, 0)
 
             j_traj = interpolation(q2_knots, 2, 0.2)
             self.j_ctrl.exec(0, j_traj, 0.2)
@@ -278,12 +279,36 @@ class robot_winding():
             rospy.sleep(2)
             self.gripper.l_open()
 
+        print('move out from the grasping pose')
+        ## left grippermove to the side
+        if execute:
+            self.move2pt(entering, j_stop_value)
+            rospy.sleep(2)
 
+        print('push the rope back a little bit')
+        if execute:
+            pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
+            pushback_0 = transformation2pose(np.array([[0,  1, 0, entering.position.x+0.04],\
+                                                       [ 0,  0,-1, entering.position.y],\
+                                                       [-1, 0, 0, 0.12],\
+                                                       [ 0,  0, 0, 1    ]]))
+
+            self.move2pt(pushback_0, j_stop_value + pi/2)
+            rospy.sleep(2)
+            pushback_1 = pose_with_offset(pushback_0, [0, 0, 0.06])
+            pushback_2 = copy.deepcopy(pushback_1)
+            pushback_2.position.y = pos[1] - finger_offset[2]
+            pushback_3 = copy.deepcopy(pushback_2)
+            pushback_3.position.x = curve_path[0].position.x
+            self.move_p2p(pushback_1, pushback_2, j_stop_value + pi/2)
+            rospy.sleep(2)
+            self.move_p2p(pushback_3, pushback_0, j_stop_value + pi/2)
+            # self.move2pt(pushback_0, j_stop_value + pi/2)
 
         print('move out of the view')
         ## left grippermove to the side
         if execute:
-            self.move2pt(entering, j_start_value - 2*pi)
+            self.move2pt(entering, j_stop_value)
             rospy.sleep(2)
 
     def reset(self):
