@@ -178,10 +178,10 @@ class robot_winding():
 
         print("====starting the first wrap")
         # rod_center = copy.deepcopy(t_rod2world)
-        t_wrapping = self.rope.find_frontier(self.ic.cv_image, t_rod2world)
-        pose = transformation2pose(t_wrapping)
-        pose.position.z = 0.15
-        self.marker.show(pose)
+        wrapping_pose = self.rope.find_frontier(self.ic.cv_image, t_rod2world)
+        # # pose = transformation2pose(t_wrapping)
+        wrapping_pose.position.z = 0.15
+        self.marker.show(wrapping_pose)
 
         # ## Left and right arm are not mirrored. The left hand is having some problem
         # ## with reaching points that are too low.

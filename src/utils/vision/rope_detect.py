@@ -23,7 +23,7 @@ sys.path.append('../../')
 from utils.vision.rgb_camera import image_converter
 from utils.vision.rope_pre_process import get_subimg, hue_detection
 from utils.vision.rope_post_process import get_rope_mask, find_ropes, find_gp
-from utils.vision.adv_check import helix_adv_mask
+from utils.vision.adv_check import helix_adv_mask, get_single_hull
 from utils.vision.len_check import find_rope_diameter
 
 def generateImage(img_np):
@@ -78,33 +78,35 @@ class rope_detect:
 
     def find_frontier(self, img, center_tf):
         mask, offset, top_edge = helix_adv_mask(cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[:,:,0], self.rod_info.box2d, self.info.hue)
-        [x1, y1] = top_edge[0]
-        [x2, y2] = top_edge[1]
+        
+        hull = get_single_hull(mask)
+        rect = cv2.minAreaRect(hull)
+        box = np.int0(cv2.boxPoints(rect))
 
-        [height, width] = mask.shape
-        ## find the pixel that is at right top corner, being masked, and on the top edge of the rod
-        for ix in range(x2-1, x1, -1):
-            for iy in range(0, height):
-                # iy = int(a*ix+b)
-                if mask[iy, ix] > 100:
-                    break
-            if mask[iy, ix] > 100:
-                    break
+        sort_x = box[box[:,0].argsort()]
+        right_edge = np.array([sort_x[2], sort_x[3]])
 
-        frontier_2d = [ix, iy]
-        print([x1, x2])
-        print(frontier_2d)
-        print((x1+x2)/2)
-        adv = [0, self.rod_info.l * (ix-(x1+x2)/2)/(x2-x1), 0]
-        print(adv)
+        ## x for 2D image, and y for 3D workspace
+        frontier_2d = [int((right_edge[0][0] + right_edge[1][0])/2) + offset[0],\
+                       int((right_edge[0][1] + right_edge[1][1])/2) + offset[1]]
 
-        rot = center_tf[:3, :3]
-        new_tf = copy.deepcopy(center_tf)
-        d_trans = np.dot(rot, np.array(adv))
-        for i in range(3):
-            new_tf[i, 3]+=d_trans[i]
+        xc_p = (self.rod_info.box2d[2][0] + self.rod_info.box2d[0][0])/2
+        yc_p = (self.rod_info.box2d[2][1] + self.rod_info.box2d[0][1])/2
+
+        dx_p = frontier_2d[0] - xc_p
+        dy_p = frontier_2d[1] - yc_p
+
+        self.masked_img = cv2.circle(img, (frontier_2d[0], frontier_2d[1]), radius=5, color=(0, 0, 255), thickness=-1)
+        self.pub.publish(self.bridge.cv2_to_imgmsg(self.masked_img, encoding='passthrough'))
+
+        # estimate distance, actual, measured in meters
+        dy = dx_p * self.scale
+        dz = 0
+
+        new_pose = copy.deepcopy(self.rod_info.pose)
+        new_pose.position.y += dy
             
-        return new_tf
+        return new_pose
 
     def get_ropes(self, img):
         if self.info is None:
