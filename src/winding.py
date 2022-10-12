@@ -19,6 +19,8 @@ from utils.robot.visualization   import marker
 
 from utils.vision.rgb_camera     import image_converter
 from utils.vision.rope_detect    import rope_detect
+from utils.vision.adv_check      import check_adv
+from utils.vision.len_check      import check_len
 
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 
@@ -72,6 +74,8 @@ class robot_winding():
         while self.ic.has_data==False:
             print('waiting for RGB data')
             rospy.sleep(0.1)
+
+        self.file = open("param.txt", "rw")
 
     def move2pt(self, point, j6_value, group = 0):
         q = self.yumi.ik_with_restrict(group, point, j6_value)
@@ -144,7 +148,7 @@ class robot_winding():
     def winding(self):
         ##---- winding task entrance here ----##
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
-
+        
         self.reset()
 
         ## recover rod's information from the saved data
@@ -192,6 +196,14 @@ class robot_winding():
         for i in range(3):
             ## find the left most wrap on the rod
             self.step(t_wrapping, r, l, advance, debug = True, execute=True)
+
+
+            if i > 0:
+                ## get feedback
+                adv_result = check_adv(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.diameter)
+                len_result = check_len(self.ic.cv_image, rod.info.box2d, self.rope.info.hue)
+
+                print("Tested advnace is: {}, extra length is: {}".format(adv_result, len_result))
             # t_wrapping = tf_with_offset(t_wrapping, [0, advance, 0])
         
         self.reset()
@@ -333,8 +345,8 @@ class robot_winding():
 if __name__ == '__main__':
     run = True
     menu  = '=========================\n'
-    menu += '1' + '. reset the robot\n'
-    menu += '2' + '. winding\n'
+    menu += '1. reset the robot\n'
+    menu += '2. winding\n'
     menu += '0. exit\n'
     menu += 'Your input:'
     while run:

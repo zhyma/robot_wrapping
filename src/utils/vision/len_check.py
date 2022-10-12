@@ -102,7 +102,7 @@ def string_search(img, bottom_edge, debug=False):
             if y - (a*x+b) > 0:
                 mask[y, x] = 255
 
-        cv2.line(mask, bottom_edge[0], bottom_edge[1], 255, 2)
+        cv2.line(mask, tuple(bottom_edge[0]), tuple(bottom_edge[1]), 255, 2)
 
     print("total len: {}, extra len: {}".format(len(string), extra_len))
 
@@ -188,6 +188,14 @@ def remove_active(img, rope_diameter, bottom_edge):
     rope_skeleton = (np.where(skeleton==True, 255, 0)).astype(np.uint8)
 
     return rope_skeleton
+
+def check_len(img, poly, rope_hue, rope_diameter):
+    sub_mask, offset, bottom_edge = helix_len_mask(cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[:,:,0], poly, rope_hue)
+    new_mask = remove_active(sub_mask, rope_diameter, bottom_edge)
+    _, extra_len, _ = string_search(new_mask, bottom_edge, debug=True)
+
+    return extra_len
+    # filtered_string = cv2.circle(filtered_string, top, radius=2, color=255, thickness=-1)
 
 class node():
     def __init__(self, xy, parent):

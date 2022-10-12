@@ -71,17 +71,87 @@ def solidity(img, prev_h, post_h):
 
     return rope/area
 
-def check_adv(img1, img2, poly, hue):
-    mask1 = helix_adv_mask(cv2.cvtColor(img1, cv2.COLOR_BGR2HSV)[:,:,0], poly, hue)
-    mask2 = helix_adv_mask(cv2.cvtColor(img2, cv2.COLOR_BGR2HSV)[:,:,0], poly, hue)
+def check_adv(img, poly, hue, rope_diameter):
+    ## return percentage gap_area/(gap_area+rope_area)
 
-    hull1 = get_single_hull(mask1)
-    hull2 = get_single_hull(mask2)
+    mask, offset, _ = helix_adv_mask(cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[:,:,0], poly, hue)
 
-    p = solidity(mask2, hull1, hull2)
+    ## need to know the rope diameter, and the bottom edge of the rod
+    [height, width] = mask.shape
 
-    return p
+    new_mask = np.zeros((height, width), dtype=np.uint8)
 
+    cont = find_all_contours(mask)
+    cv2.fillPoly(new_mask, pts=[i for i in cont], color=255)
+
+    # display_img(new_mask)
+
+    img4debug = np.zeros((height, width), dtype=np.uint8)
+    # ## find the right most contour
+    last_rope_area = 0
+    last_gap_area = 0
+
+    for iy in range(0, height):
+        new_mask[iy, width-1] = 0
+
+        layer_rope_area = 0
+        layer_gap_area = 0
+
+        ix = width-2
+        ## skip empty part
+        while ix >= 1:
+            if new_mask[iy, ix] < 100:
+                ix-=1
+                continue
+            else:
+                break
+
+        ## find the last wrap, meet the first gap or two wraps are cling to each other
+        cnt_n = 0 ## number of consecutive masked pixels
+        while mask[iy, ix] > 100 and (ix >= 1):
+            if cnt_n <= rope_diameter:
+                img4debug[iy, ix] = 255
+            else:
+                img4debug[iy, ix] = 150
+            layer_rope_area += 1
+            cnt_n += 1
+            ix -= 1
+            ## found two clinged wraps
+            if cnt_n > rope_diameter:
+                layer_rope_area += rope_diameter
+                layer_gap_area = -1
+                break
+
+        if layer_gap_area == -1:
+            layer_gap_area = 0
+        else:
+            ## scan for layer gap_area
+            while mask[iy, ix] < 100 and (ix >= 1):
+                layer_gap_area += 1
+                ix -= 1
+
+            if ix <= 1:
+                layer_gap_area = 0
+
+        # print("layer_rope_area: {}, layer_gap_area: {}".format(layer_rope_area, layer_gap_area))
+
+
+        last_rope_area += layer_rope_area
+        last_gap_area  += layer_gap_area
+
+        img4debug[iy, ix] = 255
+
+    print("find rope area: {}, find gap area: {}, percentage: {}".format(last_rope_area, last_gap_area, last_gap_area/(last_gap_area+last_rope_area)))
+
+    # new_img = copy.deepcopy(img)
+    # for iy in range(height):
+    #     for ix in range(width):
+    #         if img4debug[iy, ix] > 200:
+    #             new_img[iy+offset[1], ix+offset[0]][1] = 255
+    #         elif img4debug[iy, ix] > 100 and img4debug[iy, ix] < 200:
+    #             new_img[iy+offset[1], ix+offset[0]][2] = 255
+
+    return last_gap_area/(last_gap_area+last_rope_area)
 
 if __name__ == '__main__': 
     from rope_pre_process import hue_detection
