@@ -78,6 +78,18 @@ class rope_detect:
 
     def find_frontier(self, img, center_tf):
         mask, offset, top_edge = helix_adv_mask(cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[:,:,0], self.rod_info.box2d, self.info.hue)
+
+        ## the tape around the rod leads to significant reflection, which cause detection failure.
+        ## only use the lower half of the mask
+
+        [height, width] = mask.shape
+        mask = mask[height//2:-1,:]
+
+        offset[1] += height//2
+
+        # cv2.imshow('image', mask)
+        # show_window = True
+        # cv2.waitKey(0)
         
         hull = get_single_hull(mask)
         rect = cv2.minAreaRect(hull)
