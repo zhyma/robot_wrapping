@@ -52,7 +52,6 @@ def pose_with_offset(pose, offset):
 class robot_winding():
     def __init__(self):
         self.gripper = gripper_ctrl()
-
         ##-------------------##
         ## initializing the moveit 
         moveit_commander.roscpp_initialize(sys.argv)
@@ -76,11 +75,19 @@ class robot_winding():
             rospy.sleep(0.1)
 
         self.file = open("param.txt", "rw")
+        self.adv = -1.0
+        self.len = -1.0
+        line = self.file.readline()
+        if len(line) > 0:
+            self.adv = float(line.split(',')[0])
+            self.len = float(line.split(',')[1])
+
 
     def move2pt(self, point, j6_value, group = 0):
         q = self.yumi.ik_with_restrict(group, point, j6_value)
         if type(q) is int:
             print('No IK found')
+            return -1
         else:
             self.j_ctrl.robot_setjoint(group, q)
 
@@ -89,12 +96,14 @@ class robot_winding():
         q_start = self.yumi.ik_with_restrict(group, start, j6_value)
         if type(q_start) is int:
             print('No IK found @ start')
+            return -1
         else:
             self.j_ctrl.robot_setjoint(group, q_start)
         rospy.sleep(2)
         q_stop = self.yumi.ik_with_restrict(group, stop, j6_value)
         if type(q_stop) is int:
             print('No IK found @ stop')
+            return -1
         else:
             self.j_ctrl.robot_setjoint(group, q_stop)
 
@@ -145,7 +154,7 @@ class robot_winding():
         self.move2pt(hold, -0.5, group=1)
         rospy.sleep(2)
 
-    def winding(self):
+    def winding(self, learning=False):
         ##---- winding task entrance here ----##
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
         
@@ -262,6 +271,15 @@ class robot_winding():
         ## z pointing toward right
         entering = pose_with_offset(stop, [-0.01, 0, -0.06])
 
+        menu  = '=========================\n'
+        menu += '0. NO!\n'
+        menu += '1. execute\n'
+        choice = input(menu)
+        if choice == 1:
+            execute = True
+        else:
+            execute = False
+
         print('move closer to the rope')
         if execute:
             self.move_p2p(entering, stop, j_start_value)
@@ -269,21 +287,19 @@ class robot_winding():
             self.gripper.l_close()
             rospy.sleep(2)
 
-        self.j_ctrl.exec(0, [j_traj[0], j_traj[1]], 0.2)
+            # ## test the first two points
+            # self.j_ctrl.exec(0, [j_traj[0], j_traj[1]], 0.2)
 
-        print('wrapping...')
-        if execute:
+            print('wrapping...')
             self.j_ctrl.exec(0, j_traj, 0.2)
 
-        print('straighten out the rope')
-        ## straighten out the rope
-        start = curve_path[-2]
-        stop = pose_with_offset(curve_path[-1], [0, 0.10, 0])
-        self.marker.show(start)
-        if execute:
-            # self.move2pt(stop, j_stop_value)
-            line_path = self.pg.generate_line(start, stop)
+            print('straighten out the rope')
+            ## straighten out the rope
+            start = curve_path[-2]
+            stop = pose_with_offset(curve_path[-1], [0, 0.10, 0])
+            self.marker.show(start)
 
+            line_path = self.pg.generate_line(start, stop)
             self.pg.publish_waypoints(curve_path + line_path)
 
             q2_knots = self.pts2qs(line_path, j_stop_value, 0)
@@ -294,14 +310,12 @@ class robot_winding():
             rospy.sleep(2)
             self.gripper.l_open()
 
-        print('move out from the grasping pose')
-        ## left grippermove to the side
-        if execute:
+            print('move out from the grasping pose')
+            ## left grippermove to the side
             self.move2pt(entering, j_stop_value)
             rospy.sleep(2)
 
-        print('push the rope back a little bit')
-        if execute:
+            print('push the rope back a little bit')
             pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
             pushback_0 = transformation2pose(np.array([[0,  1, 0, entering.position.x+0.04],\
                                                        [ 0,  0,-1, entering.position.y],\
@@ -320,9 +334,8 @@ class robot_winding():
             self.move_p2p(pushback_3, pushback_0, j_stop_value + pi/2)
             # self.move2pt(pushback_0, j_stop_value + pi/2)
 
-        print('move out of the view')
-        ## left grippermove to the side
-        if execute:
+            print('move out of the view')
+            ## left grippermove to the side
             self.move2pt(entering, j_stop_value)
             rospy.sleep(2)
 
