@@ -249,27 +249,50 @@ class robot_winding():
         ## solution found, now execute
         n_samples = 10
         dt = 2
-        j_traj = interpolation(q1_knots, n_samples, dt)
+        j_traj_1 = interpolation(q1_knots, n_samples, dt)
 
         ## from default position move to the rope starting point
         # stop = pose_with_offset(curve_path[0], [-0.005, -0.04, 0])
 
+        ## pt_0: entering point
+        ## pt_1: grabbing point
+        ## pt_2: pushback position (away from the rope, x and y directions)
+        ## pt_3: pushback position (away from the rope, x direction)
+        ## pt_4: pushback position (away from the rope, x direction. adjust according to current rope's pose)
+        ## pt_5: pushback position (right under the rod)
         pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l-0.02)
 
         ## only need the orientation of the gripper
-        stop = copy.deepcopy(curve_path[0])
-        stop.position.x = pos[0]
-        stop.position.y = pos[1]
-        stop.position.z = pos[2]
-
+        pt_1 = copy.deepcopy(curve_path[0])
+        pt_1.position.x = pos[0]
+        pt_1.position.y = pos[1]
+        pt_1.position.z = pos[2]
         ## z is the offset along z-axis
-        stop = pose_with_offset(stop, finger_offset)
-        # self.move2pt(stop, j_start_value)
+        pt_1 = pose_with_offset(pt_1, finger_offset)
 
         # self.marker.show(curve_path[0])
         ## based on the frame of link_7 (not the frame of the rod)
         ## z pointing toward right
-        entering = pose_with_offset(stop, [-0.01, 0, -0.06])
+        pt_0 = pose_with_offset(p1, [-0.01, 0, -0.06])
+
+        ## for straightening the rope
+        pose = pose_with_offset(curve_path[-1], [0, 0.10, 0])
+        line_path = self.pg.generate_line(curve_path[-2], pose)
+        self.pg.publish_waypoints(curve_path + line_path)
+        q2_knots = self.pts2qs(line_path, j_stop_value, 0)
+        j_traj_2 = interpolation(q2_knots, 2, 0.2)
+
+        pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
+        pt_2 = transformation2pose(np.array([[ 0,  1, 0, pt_0.position.x+0.04],\
+                                             [ 0,  0,-1, pt_0.position.y],\
+                                             [-1, 0, 0, 0.12],\
+                                             [ 0,  0, 0, 1    ]]))
+
+        pt_3 = pose_with_offset(pt_2, [0, 0, 0.06])
+        pt_4 = copy.deepcopy(pt_3)
+        pt_4.position.y = pos[1] - finger_offset[2]
+        pt_5 = copy.deepcopy(pt_4)
+        pt_5.position.x = curve_path[0].position.x
 
         menu  = '=========================\n'
         menu += '0. NO!\n'
@@ -280,63 +303,53 @@ class robot_winding():
         else:
             execute = False
 
-        print('move closer to the rope')
         if execute:
-            self.move_p2p(entering, stop, j_start_value)
+            print('move closer to the rope')
+            # self.move_p2p(pt_0, pt_1, j_start_value)
+            self.move2pt(pt_0, j_start_value)
+            rospy.sleep(2)
+            self.move2pt(pt_1, j_start_value)
             ## grabbing the rope
             self.gripper.l_close()
             rospy.sleep(2)
 
-            # ## test the first two points
+            # ## test the first two points of the curve
             # self.j_ctrl.exec(0, [j_traj[0], j_traj[1]], 0.2)
 
             print('wrapping...')
-            self.j_ctrl.exec(0, j_traj, 0.2)
+            self.j_ctrl.exec(0, j_traj_1, 0.2)
 
             print('straighten out the rope')
             ## straighten out the rope
-            start = curve_path[-2]
-            stop = pose_with_offset(curve_path[-1], [0, 0.10, 0])
-            self.marker.show(start)
-
-            line_path = self.pg.generate_line(start, stop)
-            self.pg.publish_waypoints(curve_path + line_path)
-
-            q2_knots = self.pts2qs(line_path, j_stop_value, 0)
-
-            j_traj = interpolation(q2_knots, 2, 0.2)
-            self.j_ctrl.exec(0, j_traj, 0.2)
+            # self.marker.show(pt_2)
+            self.j_ctrl.exec(0, j_traj_2, 0.2)
 
             rospy.sleep(2)
             self.gripper.l_open()
 
             print('move out from the grasping pose')
             ## left grippermove to the side
-            self.move2pt(entering, j_stop_value)
+            self.move2pt(pt_0, j_stop_value)
             rospy.sleep(2)
 
             print('push the rope back a little bit')
-            pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
-            pushback_0 = transformation2pose(np.array([[0,  1, 0, entering.position.x+0.04],\
-                                                       [ 0,  0,-1, entering.position.y],\
-                                                       [-1, 0, 0, 0.12],\
-                                                       [ 0,  0, 0, 1    ]]))
-
-            self.move2pt(pushback_0, j_stop_value + pi/2)
+            self.move2pt(pt_2, j_stop_value + pi/2)
             rospy.sleep(2)
-            pushback_1 = pose_with_offset(pushback_0, [0, 0, 0.06])
-            pushback_2 = copy.deepcopy(pushback_1)
-            pushback_2.position.y = pos[1] - finger_offset[2]
-            pushback_3 = copy.deepcopy(pushback_2)
-            pushback_3.position.x = curve_path[0].position.x
-            self.move_p2p(pushback_1, pushback_2, j_stop_value + pi/2)
+            
+            # self.move_p2p(pt_3, pt_4, j_stop_value + pi/2)
+            self.move2pt(pt_3, j_stop_value + pi/2)
             rospy.sleep(2)
-            self.move_p2p(pushback_3, pushback_0, j_stop_value + pi/2)
-            # self.move2pt(pushback_0, j_stop_value + pi/2)
+            self.move2pt(pt_4, j_stop_value + pi/2)
+            rospy.sleep(2)
+            # self.move_p2p(pt_5, pt_2, j_stop_value + pi/2)
+            self.move2pt(pt_5, j_stop_value + pi/2)
+            rospy.sleep(2)
+            self.move2pt(pt_2, j_stop_value + pi/2)
 
             print('move out of the view')
             ## left grippermove to the side
-            self.move2pt(entering, j_stop_value)
+            # self.move2pt(pt_0, j_stop_value)
+            self.move2pt(pt_0, j_start_value)
             rospy.sleep(2)
 
     def reset(self):
