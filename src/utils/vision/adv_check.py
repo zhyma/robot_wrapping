@@ -10,6 +10,10 @@ def helix_adv_mask(h_img, poly, color_range):
     ## extract feature_map from img by using the 2d bounding box
     [height, width] = h_img.shape
 
+    # cv2.imshow('image', h_img)
+    # show_window = True
+    # cv2.waitKey(0)
+
     sort_y = poly[poly[:,1].argsort()]
     sort_x = poly[poly[:,0].argsort()]
     y1 = sort_y[0,1]
@@ -33,6 +37,10 @@ def helix_adv_mask(h_img, poly, color_range):
     kernel = np.ones((3, 3), np.uint8)
     output = cv2.erode(output, kernel, iterations=1)
     output = cv2.dilate(output, kernel, iterations=1)
+
+    # cv2.imshow('image', output)
+    # show_window = True
+    # cv2.waitKey(0)
 
     top_edge = np.array([[sort_y[0][0]-x1, sort_y[0][1]-y1], [sort_y[1][0]-x1, sort_y[1][1]-y1]])
 

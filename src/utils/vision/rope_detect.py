@@ -47,7 +47,7 @@ class rope_detect:
     def __init__(self, rod_info):
         self.pub = rospy.Publisher('grasping_point_detect', sensor_msgs.msg.Image, queue_size=10)
         self.rod_info = rod_info
-        self.mask = None
+        # self.mask = None
         self.masked_img = None
 
         ## box2d:
@@ -63,6 +63,8 @@ class rope_detect:
         self.bridge = CvBridge()
 
         self.info = None
+
+        self.frontier_2d = None
 
     def get_rope_info(self):
         ic = image_converter()
@@ -83,9 +85,8 @@ class rope_detect:
         ## only use the lower half of the mask
 
         [height, width] = mask.shape
-        mask = mask[height//2:-1,:]
-
-        offset[1] += height//2
+        # mask = mask[height//2:-1,:]
+        # offset[1] += height//2
 
         # cv2.imshow('image', mask)
         # show_window = True
@@ -99,16 +100,16 @@ class rope_detect:
         right_edge = np.array([sort_x[2], sort_x[3]])
 
         ## x for 2D image, and y for 3D workspace
-        frontier_2d = [int((right_edge[0][0] + right_edge[1][0])/2) + offset[0],\
+        self.frontier_2d = [int((right_edge[0][0] + right_edge[1][0])/2) + offset[0],\
                        int((right_edge[0][1] + right_edge[1][1])/2) + offset[1]]
 
         xc_p = (self.rod_info.box2d[2][0] + self.rod_info.box2d[0][0])/2
         yc_p = (self.rod_info.box2d[2][1] + self.rod_info.box2d[0][1])/2
 
-        dx_p = frontier_2d[0] - xc_p
-        dy_p = frontier_2d[1] - yc_p
+        dx_p = self.frontier_2d[0] - xc_p
+        dy_p = self.frontier_2d[1] - yc_p
 
-        self.masked_img = cv2.circle(img, (frontier_2d[0], frontier_2d[1]), radius=5, color=(0, 0, 255), thickness=-1)
+        self.masked_img = cv2.circle(img, (self.frontier_2d[0], self.frontier_2d[1]), radius=10, color=(0, 0, 255), thickness=-1)
         self.pub.publish(self.bridge.cv2_to_imgmsg(self.masked_img, encoding='passthrough'))
 
         # estimate distance, actual, measured in meters
@@ -189,7 +190,10 @@ class rope_detect:
             dx_p = gp[0] - xc_p
             dy_p = gp[1] - yc_p
 
-            self.masked_img = cv2.circle(self.masked_img, (gp[0], gp[1]), radius=5, color=(0, 0, 255), thickness=-1)
+            self.masked_img = cv2.circle(self.masked_img, (gp[0], gp[1]), radius=8, color=(0, 0, 255), thickness=-1)
+            self.masked_img = cv2.polylines(self.masked_img, [self.rod_info.box2d], isClosed=True, color=(255, 255, 0), thickness=3)
+            if (end==0) and (self.frontier_2d is not None):
+                self.masked_img = cv2.circle(self.masked_img, (self.frontier_2d[0], self.frontier_2d[1]), radius=8, color=(0, 255, 255), thickness=-1)
             self.pub.publish(self.bridge.cv2_to_imgmsg(self.masked_img, encoding='passthrough'))
 
             # estimate distance, actual, measured in meters
@@ -230,7 +234,6 @@ class rope_detect:
         dx_p = gp[0] - xc_p
         ## estimate distance, actual, measured in meters
         dy = dx_p * self.scale
-
 
         self.masked_img = cv2.circle(self.masked_img, (gp[0], gp[1]), radius=5, color=(0, 0, 255), thickness=-1)
         self.pub.publish(self.bridge.cv2_to_imgmsg(self.masked_img, encoding='passthrough'))

@@ -154,11 +154,12 @@ class robot_winding():
         self.move2pt(hold, -0.5, group=1)
         rospy.sleep(2)
 
-    def winding(self, learning=False):
+    def winding(self, learning=False, execute=False):
         ##---- winding task entrance here ----##
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
         
-        self.reset()
+        if execute:
+            self.reset()
 
         ## recover rod's information from the saved data
         rod = rod_finder(self.scene)
@@ -199,12 +200,13 @@ class robot_winding():
 
         # Left and right arm are not mirrored. The left hand is having some problem
         # with reaching points that are too low.
-        self.rope_holding(0.12)
+        if execute:
+            self.rope_holding(0.12)
 
         ## let's do a few rounds
         for i in range(3):
             ## find the left most wrap on the rod
-            self.step(t_wrapping, r, l, advance, debug = True, execute=True)
+            self.step(t_wrapping, r, l, advance, debug = True, execute=False)
 
             if i > 0:
                 ## get feedback
@@ -214,7 +216,8 @@ class robot_winding():
                 print("Tested advnace is: {}, extra length is: {}".format(adv_result, len_result))
             # t_wrapping = tf_with_offset(t_wrapping, [0, advance, 0])
         
-        self.reset()
+        if execute:
+            self.reset()
 
     def step(self, center_t, r, l, advance, debug = False, execute=True):
         curve_path = self.pg.generate_nusadua(center_t, r, l, advance)
