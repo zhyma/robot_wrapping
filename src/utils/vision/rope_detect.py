@@ -110,6 +110,7 @@ class rope_detect:
         dy_p = self.frontier_2d[1] - yc_p
 
         self.masked_img = cv2.circle(img, (self.frontier_2d[0], self.frontier_2d[1]), radius=10, color=(0, 0, 255), thickness=-1)
+        self.masked_img = cv2.polylines(self.masked_img, [self.rod_info.box2d], isClosed=True, color=(255, 255, 0), thickness=3)
         self.pub.publish(self.bridge.cv2_to_imgmsg(self.masked_img, encoding='passthrough'))
 
         # estimate distance, actual, measured in meters
@@ -149,6 +150,7 @@ class rope_detect:
         r = find_ropes(full_mask)
 
         self.masked_img = copy.deepcopy(img)
+        self.masked_img = cv2.polylines(self.masked_img, [self.rod_info.box2d], isClosed=True, color=(255, 255, 0), thickness=3)
         if r is not None:
             for i in r[1].link:
                 self.masked_img = cv2.circle(self.masked_img, (i[0], i[1]), radius=2, color=(0, 255, 0), thickness=-1)
@@ -191,7 +193,6 @@ class rope_detect:
             dy_p = gp[1] - yc_p
 
             self.masked_img = cv2.circle(self.masked_img, (gp[0], gp[1]), radius=8, color=(0, 0, 255), thickness=-1)
-            self.masked_img = cv2.polylines(self.masked_img, [self.rod_info.box2d], isClosed=True, color=(255, 255, 0), thickness=3)
             if (end==0) and (self.frontier_2d is not None):
                 self.masked_img = cv2.circle(self.masked_img, (self.frontier_2d[0], self.frontier_2d[1]), radius=8, color=(0, 255, 255), thickness=-1)
             self.pub.publish(self.bridge.cv2_to_imgmsg(self.masked_img, encoding='passthrough'))

@@ -2,6 +2,7 @@
 *.jpg
 *.jpeg
 *.png
+param.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
