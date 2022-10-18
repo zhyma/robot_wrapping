@@ -187,7 +187,7 @@ class robot_winding():
         if (self.adv < -0.05 or self.r < 0 or self.len < 0) or new_learning:
             ## No previous parameters or start a fresh learning, setup default parameters
             self.adv = 0.02 ## meter
-            self.r   = rod.info.r * 2
+            self.r   = rod.info.r * 1.2
             self.len = 0.06
 
         if demo:
@@ -213,7 +213,13 @@ class robot_winding():
             self.rope_holding(0.12)
 
         ## let's do a few rounds
-        for i in range(3):
+        i = 0
+        while i < 3:
+            last_adv = self.adv
+            last_r   = self.r
+            last_len = self.len
+            print("Current parameters are: adv - {:.3}, r - {:.3}, len - {:.3}".format(last_adv, last_r, last_len))
+
             param_updated = False
             ## find the left most wrap on the rod
             wrapping_pose = self.rope.find_frontier(self.ic.cv_image, t_rod2world)
@@ -228,14 +234,17 @@ class robot_winding():
 
             if not demo:
                 if result < 0:
-                    ## NO IK found, 
-                    ## need to tune self.len
-                    if self.len > 0.04: ## should always be roughly larger than the size of the gripper
+                    ## NO IK found, need to tune self.len
+                    if self.len > 0.02: ## should always be roughly larger than the size of the gripper
                         self.len -= 0.005
                         print("Next self.len to test is {}".format(self.len))
                         param_updated = True
                     else:
                         print('Safety distance between the gripper and the rod cannot be guaranteed!')
+
+                    continue
+                else:
+                    i += 1
 
                 len_fb = check_len(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
                 print("Extra length is: {}".format(len_fb))
@@ -243,6 +252,7 @@ class robot_winding():
                 if (abs(len_fb-self.last_len_fb)/len_fb > 0.1) and self.last_len_fb > -1:
                     ## len_new = len - k2*(len_feedback - threshold2)
                     self.r = self.r - 0.001*(len_fb-20)
+                    self.len = 0.06 ## having a new self.r, then start to search L' from beginning
                     print("Next self.r to test is {}".format(self.r))
                     param_updated = True
                 else:
@@ -254,9 +264,7 @@ class robot_winding():
                     adv_fb = check_adv(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
                     
                     print("Tested advnace is: {}, ".format(adv_fb))
-                    last_adv = self.adv
-                    last_r   = self.r
-                    last_len = self.len
+                    
                     if (abs(adv_fb-self.last_adv_fb)/adv_fb > 0.1) and self.last_adv_fb > -1:
                         ## adv_new = adv - k1*(adv_feedback - threshold1)
                         self.adv = self.adv - 0.1*(adv_fb - 0.2)
@@ -267,7 +275,7 @@ class robot_winding():
 
                 if param_updated:
                     with open('param.txt', 'w') as file:
-                        file.write(str(last_adv)+','+str(last_r)+','+str(last_len))
+                        file.write(str("{:.3f}".format(last_adv))+','+str("{:.3f}".format(last_r))+','+str("{:.3f}".format(last_len)))
         
         if execute:
             self.reset()
@@ -299,7 +307,7 @@ class robot_winding():
         # skip the first waypoint (theta=0) and the last one (theta=2\pi)
         q1_knots = self.pts2qs(curve_path[1:-1], j_start_value+d_j, d_j)
         if type(q1_knots) is int:
-            print('not enough waypoints, skip')
+            print('not enough waypoints for the spiral, skip')
             return -1
         print("sovled q1:{}".format(len(q1_knots)))
 
@@ -337,6 +345,9 @@ class robot_winding():
         line_path = self.pg.generate_line(curve_path[-2], pose)
         self.pg.publish_waypoints(curve_path + line_path)
         q2_knots = self.pts2qs(line_path, j_stop_value, 0)
+        if type(q2_knots) is int:
+            print('not enough waypoints for straighten the rope, skip')
+            return -1
         j_traj_2 = interpolation(q2_knots, 2, 0.2)
 
         gp_pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
@@ -448,7 +459,8 @@ if __name__ == '__main__':
     menu += '1. Reset the robot\n'
     menu += '2. Winding motion demo\n'
     menu += '3. Show wrapping motion with current parameters\n'
-    menu += '4. Learning parameters\n'
+    menu += '4. Start a fresh new learning\n'
+    menu += '5. Continue previous learning\n'
     menu += '0. Exit\n'
     menu += 'Your input:'
 
@@ -471,6 +483,9 @@ if __name__ == '__main__':
                 ## wrap with current parameters
                 rw.winding(demo=False, new_learning=False)
             elif choice == '4':
+                ## tuning parameters automatically
+                rw.winding(demo=False, new_learning=True)
+            elif choice == '5':
                 ## tuning parameters automatically
                 rw.winding(demo=False, new_learning=True)
 
