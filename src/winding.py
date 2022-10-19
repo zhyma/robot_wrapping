@@ -105,6 +105,7 @@ class robot_winding():
         n_pts = len(pts)
         last_j_angle = j_start_value + d_j*(n_pts-1)
         solved_pts = 0
+        no_ik_found = []
         for i in range(n_pts-1, -1, -1):
             # print('point {} is\n{}\n{}'.format(i, pts[i], last_j_angle))
             q = self.yumi.ik_with_restrict(0, pts[i], last_j_angle)
@@ -112,13 +113,17 @@ class robot_winding():
             last_j_angle -= d_j
             if q==-1:
                 ## no IK solution found, remove point
-                print("No IK solution is found at point {} (out of {})".format(i, n_pts))
-                # curve_path.pop(i)
+                no_ik_found.append(i)
             else:
                 # print("point {} solved".format(i))
                 q_knots.insert(0, q)
                 solved_pts += 1
 
+        if len(no_ik_found) > 0:
+            print("No IK solution is found at point: ",end='')
+            for i in no_ik_found:
+                print(str(i), end=',')
+            print("\n")
         if solved_pts < n_pts/2:
             return -1
 
@@ -156,7 +161,7 @@ class robot_winding():
         self.move2pt(hold, -0.5, group=1)
         rospy.sleep(2)
 
-    def winding(self, demo=False, new_learning=False, execute=True):
+    def winding(self, pretuned_demo=False, new_learning=False, learning=False, execute=True):
         ##---- winding task entrance here ----##
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
         
@@ -168,15 +173,15 @@ class robot_winding():
 
         with open('rod_info.pickle', 'rb') as handle:
             rod.info = pickle.load(handle)
-            print('load rod:{}'.format(rod.info.pose))
+            # print('load rod:{}'.format(rod.info.pose))
 
         self.rope = rope_detect(rod.info)
         with open('rope_info.pickle', 'rb') as handle:
             self.rope.info = pickle.load(handle)
-            print('load rope: with color: {}, diameter: {}'.format(self.rope.info.hue, self.rope.info.diameter))
+            # print('load rope: with color: {}, diameter: {}'.format(self.rope.info.hue, self.rope.info.diameter))
 
         rod.add_to_scene()
-        print('rod added to scene')
+        # print('rod added to scene')
 
         ## get transform rod2world here
         t_rod2world = pose2transformation(rod.info.pose)
@@ -187,10 +192,12 @@ class robot_winding():
         if (self.adv < -0.05 or self.r < 0 or self.len < 0) or new_learning:
             ## No previous parameters or start a fresh learning, setup default parameters
             self.adv = 0.02 ## meter
-            self.r   = rod.info.r * 1.2
+            self.r   = rod.info.r * 1.5
             self.len = 0.06
+            with open('param.txt', 'w') as file:
+                file.write(str("{:.3f}".format(self.adv))+','+str("{:.3f}".format(self.r))+','+str("{:.3f}".format(self.len)))
 
-        if demo:
+        if pretuned_demo:
             ## demo wrapping, use constants (l=0.18)
             self.adv = 0
             self.r   = 0.02
@@ -218,7 +225,8 @@ class robot_winding():
             last_adv = self.adv
             last_r   = self.r
             last_len = self.len
-            print("Current parameters are: adv - {:.3}, r - {:.3}, len - {:.3}".format(last_adv, last_r, last_len))
+            print("\n========")
+            print("Current parameters are:\nadv: {:.3}\nr: {:.3}\nlen: {:.3}".format(last_adv, last_r, last_len))
 
             param_updated = False
             ## find the left most wrap on the rod
@@ -232,7 +240,9 @@ class robot_winding():
             l = self.r*pi*2 + self.len
             result = self.step(t_wrapping, self.r, l, self.adv, debug = True, execute=execute)
 
-            if not demo:
+            if (not pretuned_demo) and (new_learning or learning):
+                print("***Learning phrase...***")
+                ## for new_learning==True (start a new learning)
                 if result < 0:
                     ## NO IK found, need to tune self.len
                     if self.len > 0.02: ## should always be roughly larger than the size of the gripper
@@ -241,37 +251,45 @@ class robot_winding():
                         param_updated = True
                     else:
                         print('Safety distance between the gripper and the rod cannot be guaranteed!')
+                        self.r -= 0.005 ## try to reduce the r instead?
+                        self.len = 0.06
 
-                    continue
                 else:
                     i += 1
+                    print("***Do one wrap successfully***")
 
-                len_fb = check_len(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
-                print("Extra length is: {}".format(len_fb))
+                    len_fb = check_len(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
+                    print("Extra length is: {}".format(len_fb))
 
-                if (abs(len_fb-self.last_len_fb)/len_fb > 0.1) and self.last_len_fb > -1:
-                    ## len_new = len - k2*(len_feedback - threshold2)
-                    self.r = self.r - 0.001*(len_fb-20)
-                    self.len = 0.06 ## having a new self.r, then start to search L' from beginning
-                    print("Next self.r to test is {}".format(self.r))
-                    param_updated = True
-                else:
-                    print('The selection of r becomes stable')
-
-                if i > 0:
-                    ## skip the first wrap (for adv)?
-                    ## get feedback
-                    adv_fb = check_adv(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
-                    
-                    print("Tested advnace is: {}, ".format(adv_fb))
-                    
-                    if (abs(adv_fb-self.last_adv_fb)/adv_fb > 0.1) and self.last_adv_fb > -1:
-                        ## adv_new = adv - k1*(adv_feedback - threshold1)
-                        self.adv = self.adv - 0.1*(adv_fb - 0.2)
-                        print("Next self.adv to test is {}".format(self.adv))
-                        param_updated = True
+                    if self.last_len_fb > 0:
+                        if ((abs(len_fb-self.last_len_fb)/len_fb > 0.1) or len_fb > 20) and (len_fb-20 > 0):
+                            ## len_new = len - k2*(len_feedback - threshold2)
+                            self.r = self.r - 0.001*(len_fb-20)
+                            self.len = 0.06 ## having a new self.r, then start to search L' from beginning
+                            print("Next self.r to test is {}".format(self.r))
+                            param_updated = True
+                        else:
+                            print('The selection of r becomes stable')
                     else:
-                        print('The selection of advance becomes stable')
+                        self.last_len_fb = len_fb
+
+                    if i > 0:
+                        ## skip the first wrap (for adv)?
+                        ## get feedback
+                        adv_fb = check_adv(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
+                        
+                        print("Tested advnace is: {}, ".format(adv_fb))
+                        
+                        if self.last_adv_fb > 0:
+                            if (abs(adv_fb-self.last_adv_fb)/adv_fb > 0.1) or adv_fb > 0.2:
+                                ## adv_new = adv - k1*(adv_feedback - threshold1)
+                                self.adv = self.adv - 0.01*(adv_fb - 0.2)
+                                print("Next self.adv to test is {}".format(self.adv))
+                                param_updated = True
+                            else:
+                                print('The selection of advance becomes stable')
+                        else:
+                            self.last_adv_fb = adv_fb
 
                 if param_updated:
                     with open('param.txt', 'w') as file:
@@ -296,14 +314,14 @@ class robot_winding():
         q1_knots = []
         last_j_angle = 0.0## wrapping
 
-        print('IK for spiral')
+        # print('IK for spiral')
 
         ## do the ik from the last point, remove those with no solution.
         n_pts = len(curve_path)
         print("planned curve_path: {}".format(n_pts))
 
         d_j = -2*pi/n_pts
-        print("d_j is {}".format(d_j))
+        # print("d_j is {}".format(d_j))
         # skip the first waypoint (theta=0) and the last one (theta=2\pi)
         q1_knots = self.pts2qs(curve_path[1:-1], j_start_value+d_j, d_j)
         if type(q1_knots) is int:
@@ -369,7 +387,7 @@ class robot_winding():
         for i in range(len(pose_seq)):
             q = self.yumi.ik_with_restrict(0, poses[pose_seq[i]], j6_values[i])
             if type(q) is int:
-                print('No IK found')
+                print('No IK found for facilitate steps')
                 return -1
             else:
                 js_values.append(q)
@@ -385,9 +403,7 @@ class robot_winding():
         #     execute = False
 
         if execute:
-            print('move closer to the rope')
-            # self.move_p2p(pt_0, pt_1, j_start_value)
-            # self.move2pt(pt_0, j_start_value)
+            # print('move closer to the rope')
             self.j_ctrl.robot_setjoint(0, js_values[0])
             rospy.sleep(2)
             self.j_ctrl.robot_setjoint(0, js_values[1])
@@ -398,10 +414,10 @@ class robot_winding():
             # ## test the first two points of the curve
             # self.j_ctrl.exec(0, [j_traj_1[0], j_traj_1[1]], 0.2)
 
-            print('wrapping...')
+            # print('wrapping...')
             self.j_ctrl.exec(0, j_traj_1, 0.2)
 
-            print('straighten out the rope')
+            # print('straighten out the rope')
             ## straighten out the rope
             # self.marker.show(pt_2)
             self.j_ctrl.exec(0, j_traj_2, 0.2)
@@ -409,26 +425,17 @@ class robot_winding():
             rospy.sleep(2)
             self.gripper.l_open()
 
-            print('move out from the grasping pose')
+            # print('move out from the grasping pose')
             ## left grippermove to the side
             self.j_ctrl.robot_setjoint(0, js_values[2])
             # rospy.sleep(2)
 
-            print('push the rope back a little bit')
-            # self.j_ctrl.robot_setjoint(0, js_values[3])
-            # rospy.sleep(2)
-            # self.j_ctrl.robot_setjoint(0, js_values[4])
-            # rospy.sleep(2)
-            # self.j_ctrl.robot_setjoint(0, js_values[5])
-            # rospy.sleep(2)
-            # self.j_ctrl.robot_setjoint(0, js_values[6])
-            # rospy.sleep(2)
-            # self.j_ctrl.robot_setjoint(0, js_values[7])
+            # print('push the rope back a little bit')
             for i in [3,4,5,6,7]:
                 rospy.sleep(2)
                 self.j_ctrl.robot_setjoint(0, js_values[i])
 
-            print('move out of the view')
+            # print('move out of the view')
             ## left grippermove to the side
             self.j_ctrl.robot_setjoint(0, js_values[8])
             rospy.sleep(2)
@@ -457,8 +464,8 @@ if __name__ == '__main__':
     run = True
     menu  = '=========================\n'
     menu += '1. Reset the robot\n'
-    menu += '2. Winding motion demo\n'
-    menu += '3. Show wrapping motion with current parameters\n'
+    menu += '2. Wrapping motion demo with pretuned parameters\n'
+    menu += '3. Wrapping motion demo with current parameters\n'
     menu += '4. Start a fresh new learning\n'
     menu += '5. Continue previous learning\n'
     menu += '0. Exit\n'
@@ -472,22 +479,22 @@ if __name__ == '__main__':
     while run:
         choice = input(menu)
         
-        if choice in ['1', '2', '3', '4']:
+        if choice in ['1', '2', '3', '4', '5']:
             if choice == '1':
                 ## reset the robot
                 rw.reset()
             elif choice == '2':
                 ## show pretuned demo
-                rw.winding(demo=True, new_learning=False)
+                rw.winding(pretuned_demo=True,  new_learning=False, learning=False)
             elif choice == '3':
                 ## wrap with current parameters
-                rw.winding(demo=False, new_learning=False)
+                rw.winding(pretuned_demo=False, new_learning=False, learning=False)
             elif choice == '4':
-                ## tuning parameters automatically
-                rw.winding(demo=False, new_learning=True)
+                ## start a new learning, tuning parameters automatically
+                rw.winding(pretuned_demo=False, new_learning=True,  learning=True)
             elif choice == '5':
-                ## tuning parameters automatically
-                rw.winding(demo=False, new_learning=True)
+                ## continue previous learning, tuning parameters automatically
+                rw.winding(pretuned_demo=False, new_learning=False, learning=True)
 
         else:
             ## exit
