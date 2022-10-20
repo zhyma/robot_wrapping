@@ -221,12 +221,17 @@ class robot_winding():
 
         ## let's do a few rounds
         i = 0
+        with open("log.txt", 'a') as file:
+                file.write(",,,new wraps\n")
         while i < 3:
             last_adv = self.adv
             last_r   = self.r
             last_len = self.len
             print("\n========")
             print("Current parameters are:\nadv: {:.3}\nr: {:.3}\nlen: {:.3}".format(last_adv, last_r, last_len))
+            with open("log.txt", 'a') as file:
+                file.write("{:.3},{:.3},{:.3},".format(last_adv, last_r, last_len))
+
 
             param_updated = False
             ## find the left most wrap on the rod
@@ -246,15 +251,21 @@ class robot_winding():
                 if result < 0:
                     ## NO IK found, need to tune self.len
                     if self.len > 0.02: ## should always be roughly larger than the size of the gripper
-                        self.len -= 0.005
+                        self.len -= 0.01
                         print("Next self.len to test is {}".format(self.len))
                         param_updated = True
+                        with open("log.txt", 'a') as file:
+                            file.write("No IK found. Reduce L'.,")
                     else:
                         print('Safety distance between the gripper and the rod cannot be guaranteed!')
                         self.r -= 0.005 ## try to reduce the r instead?
                         self.len = 0.06
+                        with open("log.txt", 'a') as file:
+                            file.write("No IK found. Safety distance reached. Reduce r.,")
 
                 else:
+                    with open("log.txt", 'a') as file:
+                            file.write("Done wrap No. {}.,".format(i))
                     i += 1
                     print("***Do one wrap successfully***")
 
@@ -267,9 +278,13 @@ class robot_winding():
                             self.r = self.r - 0.001*(len_fb-20)
                             self.len = 0.06 ## having a new self.r, then start to search L' from beginning
                             print("Next self.r to test is {}".format(self.r))
+                            with open("log.txt", 'a') as file:
+                                file.write("change r to {:.3},".format(self.r))
                             param_updated = True
                         else:
                             print('The selection of r becomes stable')
+                            with open("log.txt", 'a') as file:
+                                file.write("r becomes stable,")
                     else:
                         self.last_len_fb = len_fb
 
@@ -286,6 +301,8 @@ class robot_winding():
                                 self.adv = self.adv - 0.01*(adv_fb - 0.2)
                                 print("Next self.adv to test is {}".format(self.adv))
                                 param_updated = True
+                                with open("log.txt", 'a') as file:
+                                    file.write("change adv to {:.3},".format(self.adv))
                             else:
                                 print('The selection of advance becomes stable')
                         else:
@@ -295,6 +312,10 @@ class robot_winding():
                     with open('param.txt', 'w') as file:
                         file.write(str("{:.3f}".format(last_adv))+','+str("{:.3f}".format(last_r))+','+str("{:.3f}".format(last_len)))
         
+            ## one wrap/trial is done
+            with open("log.txt", 'a') as file:
+                file.write("\n")
+
         if execute:
             self.reset()
 
@@ -365,7 +386,7 @@ class robot_winding():
         q2_knots = self.pts2qs(line_path, j_stop_value, 0)
         if type(q2_knots) is int:
             print('not enough waypoints for straighten the rope, skip')
-            return -1
+            return -2
         j_traj_2 = interpolation(q2_knots, 2, 0.2)
 
         gp_pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
