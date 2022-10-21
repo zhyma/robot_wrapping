@@ -199,7 +199,7 @@ class robot_winding():
 
         if pretuned_demo:
             ## demo wrapping, use constants (l=0.18)
-            self.adv = 0
+            self.adv = 0.0
             self.r   = 0.02
             self.len = 0.0544
             
@@ -222,7 +222,7 @@ class robot_winding():
         ## let's do a few rounds
         i = 0
         with open("log.txt", 'a') as file:
-                file.write(",,,new wraps\n")
+            file.write(",,,new wraps\n")
         while i < 3:
             last_adv = self.adv
             last_r   = self.r
@@ -231,7 +231,6 @@ class robot_winding():
             print("Current parameters are:\nadv: {:.3}\nr: {:.3}\nlen: {:.3}".format(last_adv, last_r, last_len))
             with open("log.txt", 'a') as file:
                 file.write("{:.3},{:.3},{:.3},".format(last_adv, last_r, last_len))
-
 
             param_updated = False
             ## find the left most wrap on the rod
@@ -245,7 +244,9 @@ class robot_winding():
             l = self.r*pi*2 + self.len
             result = self.step(t_wrapping, self.r, l, self.adv, debug = True, execute=execute)
 
-            if (not pretuned_demo) and (new_learning or learning):
+            if pretuned_demo:
+                i += 1
+            elif (new_learning or learning):
                 print("***Learning phrase...***")
                 ## for new_learning==True (start a new learning)
                 if result < 0:
@@ -266,12 +267,13 @@ class robot_winding():
                 else:
                     with open("log.txt", 'a') as file:
                             file.write("Done wrap No. {}.,".format(i))
-                    i += 1
+                    
                     print("***Do one wrap successfully***")
 
                     len_fb = check_len(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
                     print("Extra length is: {}".format(len_fb))
 
+                    ## update L'
                     if self.last_len_fb > 0:
                         if ((abs(len_fb-self.last_len_fb)/len_fb > 0.1) or len_fb > 20) and (len_fb-20 > 0):
                             ## len_new = len - k2*(len_feedback - threshold2)
@@ -288,6 +290,7 @@ class robot_winding():
                     else:
                         self.last_len_fb = len_fb
 
+                    ## update adv starting from the second wrap
                     if i > 0:
                         ## skip the first wrap (for adv)?
                         ## get feedback
@@ -308,13 +311,16 @@ class robot_winding():
                         else:
                             self.last_adv_fb = adv_fb
 
+                    i += 1
+
                 if param_updated:
                     with open('param.txt', 'w') as file:
                         file.write(str("{:.3f}".format(last_adv))+','+str("{:.3f}".format(last_r))+','+str("{:.3f}".format(last_len)))
         
-            ## one wrap/trial is done
-            with open("log.txt", 'a') as file:
-                file.write("\n")
+            if (not pretuned_demo) and (new_learning or learning):
+                ## one wrap/trial is done
+                with open("log.txt", 'a') as file:
+                    file.write("\n")
 
         if execute:
             self.reset()
