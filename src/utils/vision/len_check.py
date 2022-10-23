@@ -90,23 +90,26 @@ def string_search(img, bottom_edge, debug=False):
     ## find the intersection between the skeleton and the 
     string, _ = bfs(img, rope_top,  [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]], [])
 
-    extra_len = 0
+    dist_max = -1
+    valley = []
     for [x,y] in string:
         if y - (a*x+b) > 0:
-            extra_len += 1
+            dist = abs(a*x-y+b)/sqrt(a**2+1)
+            if dist > dist_max:
+                valley = [x,y]
+                dist_max = dist
 
     if debug:
         mask = np.zeros((height, width), dtype=np.uint8)
         for [x,y] in string:
-            mask[y, x] = 80
-            if y - (a*x+b) > 0:
-                mask[y, x] = 255
+            mask[y, x] = 255
 
+        # mask = cv2.circle(mask, tuple(valley), radius=2, color=255, thickness=-1)
         cv2.line(mask, tuple(bottom_edge[0]), tuple(bottom_edge[1]), 255, 2)
 
-    print("total len: {}, extra len: {}".format(len(string), extra_len))
+    print("total len: {}, lowest point distacne: {}".format(len(string), dist_max))
 
-    return rope_top, extra_len, mask
+    return rope_top, dist_max, mask
 
 def remove_active(img, rope_diameter, bottom_edge):
 
@@ -192,9 +195,9 @@ def remove_active(img, rope_diameter, bottom_edge):
 def check_len(img, poly, rope_hue, rope_diameter):
     sub_mask, offset, bottom_edge = helix_len_mask(cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[:,:,0], poly, rope_hue)
     new_mask = remove_active(sub_mask, rope_diameter, bottom_edge)
-    _, extra_len, _ = string_search(new_mask, bottom_edge, debug=True)
+    _, dist, _ = string_search(new_mask, bottom_edge, debug=True)
 
-    return extra_len
+    return dist
     # filtered_string = cv2.circle(filtered_string, top, radius=2, color=255, thickness=-1)
 
 class node():

@@ -44,6 +44,8 @@ def pose_with_offset(pose, offset):
 
 class robot_winding():
     def __init__(self):
+        self.options = ['pretuned_demo', 'demo_current', 'new_learning', 'continue_previous']
+
         self.gripper = gripper_ctrl()
         ##-------------------##
         ## initializing the moveit 
@@ -67,29 +69,29 @@ class robot_winding():
             print('waiting for RGB data')
             rospy.sleep(0.1)
 
-        ## control parameters
-        self.adv = -1.0
-        self.r   = -1.0
-        self.len = -1.0
+        # ## control parameters
+        # self.adv = -1.0
+        # self.r   = -1.0
+        # self.len = -1.0
 
-        if os.path.exists('param.txt'):
-            ## file format: '0.1,0.2,0.3'
-            ## values are advance, r, and L' (L=2*\pi*R+L')
-            with open('param.txt', 'r') as file:
-                line = file.readline()
-                self.adv = float(line.split(',')[0])
-                self.r   = float(line.split(',')[1])
-                self.len = float(line.split(',')[2])
+        # # if os.path.exists('param.txt'):
+        # #     ## file format: '0.1,0.2,0.3'
+        # #     ## values are advance, r, and L' (L=2*\pi*R+L')
+        # #     with open('param.txt', 'r') as file:
+        # #         line = file.readline()
+        # #         self.adv = float(line.split(',')[0])
+        # #         self.r   = float(line.split(',')[1])
+        # #         self.len = float(line.split(',')[2])
 
-        else:
-            ## file does not exist, create a new one
-            with open('param.txt', 'w') as file:
-                file.write(str(self.adv)+','+str(self.r)+','+str(self.len))
+        # # else:
+        # #     ## file does not exist, create a new one
+        # #     with open('param.txt', 'w') as file:
+        # #         file.write(str(self.adv)+','+str(self.r)+','+str(self.len))
 
-        ## initializing the last feedback state and the last frontier
-        self.last_adv_fb   = -10
-        self.last_len_fb   = -10
-        self.last_frontier = None
+        # ## initializing the last feedback state and the last frontier
+        # self.last_adv_fb   = -10
+        # self.last_len_fb   = -10
+        # self.last_frontier = None
 
     def move2pt(self, point, j6_value, group = 0):
         q = self.yumi.ik_with_restrict(group, point, j6_value)
@@ -161,10 +163,16 @@ class robot_winding():
         self.move2pt(hold, -0.5, group=1)
         rospy.sleep(2)
 
-    def winding(self, pretuned_demo=False, new_learning=False, learning=False, execute=True):
+    def winding(self, input_option):
         ##---- winding task entrance here ----##
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
-        
+        if input_option not in self.options:
+            print("NO SUCH AN OPTION! EXIT.")
+            return
+
+        [adv, r, lp] = [-1.0, -1.0, -1.0] ## L prime, or L'
+        [solved_adv, solved_r, solved_lp] = [-1.0, -1.0, -1.0] ## L prime, or L'
+        option = input_option
         if execute:
             self.reset()
 
@@ -188,34 +196,46 @@ class robot_winding():
         self.ws_tf.set_tf('world', 'rod', t_rod2world)
 
         ##-------------------##
-        ## generate spiral here, two parameters to tune: advance and l = 2*pi*r+l'
-        if (self.adv < -0.05 or self.r < 0 or self.len < 0) or new_learning:
-            ## No previous parameters or start a fresh learning, setup default parameters
-            self.adv = 0.02 ## meter
-            self.r   = rod.info.r * 1.5
-            self.len = 0.06
-            with open('param.txt', 'w') as file:
-                file.write(str("{:.3f}".format(self.adv))+','+str("{:.3f}".format(self.r))+','+str("{:.3f}".format(self.len)))
-
-        if pretuned_demo:
+        if option == 'pretuned_demo':
             ## demo wrapping, use constants (l=0.18)
-            self.adv = 0.0
-            self.r   = 0.02
-            self.len = 0.0544
+            [adv, r, lp] = [0.0, 0.02, 0.0544]
+        else:
+            if os.path.exists('param.txt'):
+                lines = []
+                with open('param.txt', 'r') as file:
+                    lines = file.read().split('\n')
+                    if option == 'demo_current':
+                        print('demo the current parameters.')
+                        [adv, r, lp] = lines[0].split(',')
+                    elif len(lines) > 1 and len(lines[1]) > 0 and option == 'continue_previous':
+                        ## continue the previous learning
+                        [adv, r, lp] = lines[1].split(',')
+                    else:
+                        ## does not prepare the parameters to continue previous learning
+                        ## start a new one with default parameters.
+                        ## three parameters to tune: advance, r and L'. L = 2*pi*r+L'
+                        print('"param.txt" does not contain data to continue previous learning! start a new learning!')
+                        option = 'new_learning'
+
+            else:
+                with open('param.txt', 'w') as file:
+                    file.write(str(adv)+','+str(r)+','+str(lp))
+
+                if optin == 'demo_current':
+                    ## file does not exist, create a new one
+                    print('"param.txt" DOES NOT EXIST! EXIT!')
+                    return
+                else:
+                    option = 'new_learning'
+                
+        if option == 'new_learning':
+            [adv, r, lp] = [0.02, rod.info.r * 1.5, 0.06] ## meter
             
         print("rod's radius is:{}".format(rod.info.r))
-        # # l = 2*pi*r + 0.10
-        # # print('Estimated L is:{}'.format(l))
-        # l=0.18
 
         print("====starting the first wrap")
-        # wrapping_pose = self.rope.find_frontier(self.ic.cv_image, t_rod2world)
-        # t_wrapping = pose2transformation(wrapping_pose)
-        # wrapping_pose.position.z = 0.18
-        # self.marker.show(wrapping_pose)
-
         # Left and right arm are not mirrored. The left hand is having some problem
-        # with reaching points that are too low. Give it a 
+        # with reaching points that are too low. Give it a relative value
         if execute:
             self.rope_holding(0.12)
 
@@ -244,9 +264,7 @@ class robot_winding():
             l = self.r*pi*2 + self.len
             result = self.step(t_wrapping, self.r, l, self.adv, debug = True, execute=execute)
 
-            if pretuned_demo:
-                i += 1
-            elif (new_learning or learning):
+            if option in ['new_learning', 'continue_previous']:
                 print("***Learning phrase...***")
                 ## for new_learning==True (start a new learning)
                 if result < 0:
@@ -275,9 +293,9 @@ class robot_winding():
 
                     ## update L'
                     if self.last_len_fb > 0:
-                        if ((abs(len_fb-self.last_len_fb)/len_fb > 0.1) or len_fb > 20) and (len_fb-20 > 0):
+                        if ((abs(len_fb-self.last_len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
                             ## len_new = len - k2*(len_feedback - threshold2)
-                            self.r = self.r - 0.001*(len_fb-20)
+                            self.r = self.r - 0.001*(len_fb-self.rope.info.diameter*1.5)
                             self.len = 0.06 ## having a new self.r, then start to search L' from beginning
                             print("Next self.r to test is {}".format(self.r))
                             with open("log.txt", 'a') as file:
@@ -292,16 +310,14 @@ class robot_winding():
 
                     ## update adv starting from the second wrap
                     if i > 0:
-                        ## skip the first wrap (for adv)?
-                        ## get feedback
+                        ## skip the first wrap (for adv), get feedback
                         adv_fb = check_adv(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
-                        
                         print("Tested advnace is: {}, ".format(adv_fb))
                         
                         if self.last_adv_fb > 0:
                             if (abs(adv_fb-self.last_adv_fb)/adv_fb > 0.1) or adv_fb > 0.2:
                                 ## adv_new = adv - k1*(adv_feedback - threshold1)
-                                self.adv = self.adv - 0.01*(adv_fb - 0.2)
+                                self.adv = self.adv - 0.02*(adv_fb - 0.2)
                                 print("Next self.adv to test is {}".format(self.adv))
                                 param_updated = True
                                 with open("log.txt", 'a') as file:
@@ -311,16 +327,16 @@ class robot_winding():
                         else:
                             self.last_adv_fb = adv_fb
 
-                    i += 1
-
                 if param_updated:
                     with open('param.txt', 'w') as file:
-                        file.write(str("{:.3f}".format(last_adv))+','+str("{:.3f}".format(last_r))+','+str("{:.3f}".format(last_len)))
+                        file.write(str("{:.3f},{:.3f},{:.3f}\n".format(last_adv,last_r,last_len)))
+                        file.write(str("{:.3f},{:.3f},{:.3f}\n".format(self.adv,self.r,self.len)))
         
-            if (not pretuned_demo) and (new_learning or learning):
                 ## one wrap/trial is done
                 with open("log.txt", 'a') as file:
                     file.write("\n")
+
+            i += 1
 
         if execute:
             self.reset()
@@ -512,16 +528,16 @@ if __name__ == '__main__':
                 rw.reset()
             elif choice == '2':
                 ## show pretuned demo
-                rw.winding(pretuned_demo=True,  new_learning=False, learning=False)
+                rw.winding('pretuned_demo')
             elif choice == '3':
                 ## wrap with current parameters
-                rw.winding(pretuned_demo=False, new_learning=False, learning=False)
+                rw.winding('demo_current')
             elif choice == '4':
                 ## start a new learning, tuning parameters automatically
-                rw.winding(pretuned_demo=False, new_learning=True,  learning=True)
+                rw.winding('new_learning')
             elif choice == '5':
                 ## continue previous learning, tuning parameters automatically
-                rw.winding(pretuned_demo=False, new_learning=False, learning=True)
+                rw.winding('continue_previous')
 
         else:
             ## exit
