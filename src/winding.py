@@ -69,30 +69,6 @@ class robot_winding():
             print('waiting for RGB data')
             rospy.sleep(0.1)
 
-        # ## control parameters
-        # self.adv = -1.0
-        # self.r   = -1.0
-        # self.len = -1.0
-
-        # # if os.path.exists('param.txt'):
-        # #     ## file format: '0.1,0.2,0.3'
-        # #     ## values are advance, r, and L' (L=2*\pi*R+L')
-        # #     with open('param.txt', 'r') as file:
-        # #         line = file.readline()
-        # #         self.adv = float(line.split(',')[0])
-        # #         self.r   = float(line.split(',')[1])
-        # #         self.len = float(line.split(',')[2])
-
-        # # else:
-        # #     ## file does not exist, create a new one
-        # #     with open('param.txt', 'w') as file:
-        # #         file.write(str(self.adv)+','+str(self.r)+','+str(self.len))
-
-        # ## initializing the last feedback state and the last frontier
-        # self.last_adv_fb   = -10
-        # self.last_len_fb   = -10
-        # self.last_frontier = None
-
     def move2pt(self, point, j6_value, group = 0):
         q = self.yumi.ik_with_restrict(group, point, j6_value)
         if type(q) is int:
@@ -163,15 +139,18 @@ class robot_winding():
         self.move2pt(hold, -0.5, group=1)
         rospy.sleep(2)
 
-    def winding(self, input_option):
+    def winding(self, input_option, execute=True):
         ##---- winding task entrance here ----##
         ## reset -> load info -> wrapping step(0) -> evaluate -> repeate wrapping to evaluate 3 times -> back to starting pose
         if input_option not in self.options:
             print("NO SUCH AN OPTION! EXIT.")
             return
-
-        [adv, r, lp] = [-1.0, -1.0, -1.0] ## L prime, or L'
-        [solved_adv, solved_r, solved_lp] = [-1.0, -1.0, -1.0] ## L prime, or L'
+        
+        [adv_s, r_s, lp_s] = [-1.0, -1.0, -1.0] ## L prime, or L', 's' stand for stable result
+        [adv,   r,   lp  ] = [-1.0, -1.0, -1.0] ## L prime, or L', 's' stand for stable result
+        [adv_n, r_n, lp_n] = [-1.0, -1.0, -1.0] ## L prime, or L', 'n' stand for next to test
+        last_adv_fb = -10
+        last_len_fb = -10
         option = input_option
         if execute:
             self.reset()
@@ -198,18 +177,23 @@ class robot_winding():
         ##-------------------##
         if option == 'pretuned_demo':
             ## demo wrapping, use constants (l=0.18)
-            [adv, r, lp] = [0.0, 0.02, 0.0544]
+            [adv_n, r_n, lp_n] = [0.0, 0.02, 0.0544]
         else:
             if os.path.exists('param.txt'):
                 lines = []
                 with open('param.txt', 'r') as file:
                     lines = file.read().split('\n')
                     if option == 'demo_current':
+                        [adv_n, r_n, lp_n] = [float(i) for i in lines[0].split(',')]
+                        if adv_n < -0.05 or r_n < 0 or lp_n < 0:
+                            print("No stable parameters. Stop here.")
+                            return
+
                         print('demo the current parameters.')
-                        [adv, r, lp] = lines[0].split(',')
-                    elif len(lines) > 1 and len(lines[1]) > 0 and option == 'continue_previous':
+                    elif len(lines) > 2 and len(lines[2]) > 0 and option == 'continue_previous':
                         ## continue the previous learning
-                        [adv, r, lp] = lines[1].split(',')
+                        [adv_n, r_n, lp_n] = [float(i) for i in lines[1].split(',')]
+                        [last_adv_fb, last_len_fb] = [float(i) for i in lines[2].split(',')]
                     else:
                         ## does not prepare the parameters to continue previous learning
                         ## start a new one with default parameters.
@@ -221,7 +205,7 @@ class robot_winding():
                 with open('param.txt', 'w') as file:
                     file.write(str(adv)+','+str(r)+','+str(lp))
 
-                if optin == 'demo_current':
+                if option == 'demo_current':
                     ## file does not exist, create a new one
                     print('"param.txt" DOES NOT EXIST! EXIT!')
                     return
@@ -229,7 +213,7 @@ class robot_winding():
                     option = 'new_learning'
                 
         if option == 'new_learning':
-            [adv, r, lp] = [0.02, rod.info.r * 1.5, 0.06] ## meter
+            [adv_n, r_n, lp_n] = [0.02, rod.info.r * 1.5, 0.06] ## meter
             
         print("rod's radius is:{}".format(rod.info.r))
 
@@ -244,13 +228,12 @@ class robot_winding():
         with open("log.txt", 'a') as file:
             file.write(",,,new wraps\n")
         while i < 3:
-            last_adv = self.adv
-            last_r   = self.r
-            last_len = self.len
+            [adv, r, lp] = [adv_n, r_n, lp_n]
+            param_stable = [False, False]
             print("\n========")
-            print("Current parameters are:\nadv: {:.3}\nr: {:.3}\nlen: {:.3}".format(last_adv, last_r, last_len))
+            print("Current wrap {}, parameters are:\nadv: {:.3}\nr: {:.3}\nlen: {:.3}".format(i, adv, r, lp))
             with open("log.txt", 'a') as file:
-                file.write("{:.3},{:.3},{:.3},".format(last_adv, last_r, last_len))
+                file.write("{:.3},{:.3},{:.3},".format(adv, r, lp))
 
             param_updated = False
             ## find the left most wrap on the rod
@@ -261,24 +244,24 @@ class robot_winding():
 
             ## does not distinguish demo or learning here
             ## for demo, l = 0.18
-            l = self.r*pi*2 + self.len
-            result = self.step(t_wrapping, self.r, l, self.adv, debug = True, execute=execute)
+            l = r*pi*2 + lp
+            result = self.step(t_wrapping, r, l, adv, debug = True, execute=execute)
 
             if option in ['new_learning', 'continue_previous']:
                 print("***Learning phrase...***")
                 ## for new_learning==True (start a new learning)
                 if result < 0:
                     ## NO IK found, need to tune self.len
-                    if self.len > 0.02: ## should always be roughly larger than the size of the gripper
-                        self.len -= 0.01
-                        print("Next self.len to test is {}".format(self.len))
+                    if lp > 0.02: ## should always be roughly larger than the size of the gripper
+                        lp_n = lp - 0.01
+                        print("Next L' to test is {}".format(lp_n))
                         param_updated = True
                         with open("log.txt", 'a') as file:
                             file.write("No IK found. Reduce L'.,")
                     else:
                         print('Safety distance between the gripper and the rod cannot be guaranteed!')
-                        self.r -= 0.005 ## try to reduce the r instead?
-                        self.len = 0.06
+                        r_n = r - 0.005 ## try to reduce the r instead?
+                        lp_n = 0.06
                         with open("log.txt", 'a') as file:
                             file.write("No IK found. Safety distance reached. Reduce r.,")
 
@@ -292,21 +275,24 @@ class robot_winding():
                     print("Extra length is: {}".format(len_fb))
 
                     ## update L'
-                    if self.last_len_fb > 0:
-                        if ((abs(len_fb-self.last_len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
+                    if last_len_fb > 0:
+                        if ((abs(len_fb-last_len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
                             ## len_new = len - k2*(len_feedback - threshold2)
-                            self.r = self.r - 0.001*(len_fb-self.rope.info.diameter*1.5)
-                            self.len = 0.06 ## having a new self.r, then start to search L' from beginning
-                            print("Next self.r to test is {}".format(self.r))
-                            with open("log.txt", 'a') as file:
-                                file.write("change r to {:.3},".format(self.r))
+                            r_n = r - 0.001*(len_fb-self.rope.info.diameter*1.5)
+                            lp_n = 0.06 ## having a new self.r, then start to search L' from beginning
+                            print("Next self.r to test is {}".format(r_n))
                             param_updated = True
+                            last_len_fb = len_fb
+                            with open("log.txt", 'a') as file:
+                                file.write("change r to {:.3},".format(r_n))
+                            
                         else:
                             print('The selection of r becomes stable')
+                            param_stable[1] = True
                             with open("log.txt", 'a') as file:
                                 file.write("r becomes stable,")
                     else:
-                        self.last_len_fb = len_fb
+                        last_len_fb = len_fb
 
                     ## update adv starting from the second wrap
                     if i > 0:
@@ -314,29 +300,48 @@ class robot_winding():
                         adv_fb = check_adv(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
                         print("Tested advnace is: {}, ".format(adv_fb))
                         
-                        if self.last_adv_fb > 0:
-                            if (abs(adv_fb-self.last_adv_fb)/adv_fb > 0.1) or adv_fb > 0.2:
+                        if last_adv_fb > 0:
+                            if (abs(adv_fb-last_adv_fb)/adv_fb > 0.1) or adv_fb > 0.5:
                                 ## adv_new = adv - k1*(adv_feedback - threshold1)
-                                self.adv = self.adv - 0.02*(adv_fb - 0.2)
-                                print("Next self.adv to test is {}".format(self.adv))
+                                adv_n = adv - 0.02*(adv_fb - 0.2)
+                                print("Next self.adv to test is {}".format(adv_n))
                                 param_updated = True
+                                last_adv_fb = adv_fb
                                 with open("log.txt", 'a') as file:
-                                    file.write("change adv to {:.3},".format(self.adv))
+                                    file.write("change adv to {:.3},".format(adv_n))
                             else:
                                 print('The selection of advance becomes stable')
+                                param_stable[1] = True
+                                with open("log.txt", 'a') as file:
+                                    file.write("L' becomes stable,")
                         else:
-                            self.last_adv_fb = adv_fb
+                            last_adv_fb = adv_fb
 
-                if param_updated:
-                    with open('param.txt', 'w') as file:
-                        file.write(str("{:.3f},{:.3f},{:.3f}\n".format(last_adv,last_r,last_len)))
-                        file.write(str("{:.3f},{:.3f},{:.3f}\n".format(self.adv,self.r,self.len)))
+                
+                with open('param.txt', 'w') as file:
+                    ## first  line: stable param, or [-1.0,-1.0,-1.0] (no params found yet)
+                    ## second line: next to test
+                    ## third  line: last feedback
+                    ## forth  line: param stable? (1 true, -1 false)
+                    if param_updated:
+                        [adv_s, r_s, lp_s] = [adv, r, lp]
+
+                    file.write(str("{:.4f},{:.4f},{:.4f}\n".format(adv_s, r_s, lp_s)))
+                    file.write(str("{:.4f},{:.4f},{:.4f}\n".format(adv_n, r_n, lp_n)))
+                    file.write(str("{:.5f},{:.5f}\n".format(last_adv_fb, last_len_fb)))
+                    file.write(str("{}\n".format(param_stable)))
         
                 ## one wrap/trial is done
                 with open("log.txt", 'a') as file:
                     file.write("\n")
 
-            i += 1
+                if param_stable[0] and param_stable[1]:
+                    print("****Find the best parameters: adv: {.4f}, r: {.4f}, L': {.4f}****".format(adv_s, r_s, lp_s))
+                    print("====LEARNING END====")
+                    break
+
+            if (option in ['pretuned_demo', 'demo_current']) or result >= 0:
+                i += 1
 
         if execute:
             self.reset()
