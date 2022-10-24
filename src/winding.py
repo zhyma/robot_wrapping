@@ -64,6 +64,8 @@ class robot_winding():
 
         self.marker = marker()
 
+        self.poses = [Pose()]*7
+
         self.ic = image_converter()
         while self.ic.has_data==False:
             print('waiting for RGB data')
@@ -245,7 +247,7 @@ class robot_winding():
             ## does not distinguish demo or learning here
             ## for demo, l = 0.18
             l = r*pi*2 + lp
-            result = self.step(t_wrapping, r, l, adv, debug = True, execute=execute)
+            result = self.step(i, t_wrapping, r, l, adv, debug = True, execute=execute)
 
             if option in ['new_learning', 'continue_previous']:
                 print("***Learning phrase...***")
@@ -267,12 +269,14 @@ class robot_winding():
 
                 else:
                     with open("log.txt", 'a') as file:
-                            file.write("Done wrap No. {}.,".format(i))
+                        file.write("Done wrap No. {}.,".format(i))
                     
                     print("***Do one wrap successfully***")
 
                     len_fb = check_len(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
                     print("Extra length is: {}".format(len_fb))
+                    with open("log.txt", 'a') as file:
+                        file.write("len_fb is {},".format(len_fb))
 
                     ## update L'
                     if last_len_fb > 0:
@@ -299,6 +303,8 @@ class robot_winding():
                         ## skip the first wrap (for adv), get feedback
                         adv_fb = check_adv(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
                         print("Tested advnace is: {}, ".format(adv_fb))
+                        with open("log.txt", 'a') as file:
+                            file.write("adv_fb is {},".format(adv_fb))
                         
                         if last_adv_fb > 0:
                             if (abs(adv_fb-last_adv_fb)/adv_fb > 0.1) or adv_fb > 0.5:
@@ -346,7 +352,7 @@ class robot_winding():
         if execute:
             self.reset()
 
-    def step(self, center_t, r, l, advance, debug = False, execute=True):
+    def step(self, no_of_wrap, center_t, r, l, advance, debug = False, execute=True):
         curve_path = self.pg.generate_nusadua(center_t, r, l, advance)
 
         self.pg.publish_waypoints(curve_path)
@@ -383,28 +389,30 @@ class robot_winding():
         dt = 2
         j_traj_1 = interpolation(q1_knots, n_samples, dt)
 
-        poses = [Pose()]*7
-        ## poses[0]: entering point
-        ## poses[1]: grabbing point
-        ## poses[2]: pushback position (away from the rope, x and y directions)
-        ## poses[3]: pushback position (away from the rope, x direction)
-        ## poses[4]: pushback position (away from the rope, x direction. adjust according to current rope's pose)
-        ## poses[5]: pushback position (right under the rod)
+        if no_of_wrap == 0:
+            self.poses = [Pose()]*7
+            ## poses[0]: entering point
+            ## poses[1]: grabbing point
+            ## poses[2]: pushback position (away from the rope, x and y directions, all in world coordinate)
+            ## poses[3]: pushback position (away from the rope, x direction)
+            ## poses[4]: pushback position (away from the rope, x direction. adjust according to current rope's pose)
+            ## poses[5]: pushback position (right under the rod)
+            ## grab a little bit higher, then move to the starting point of the spiral (somewhere a little bit behind the rod)
         gp_pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l-0.02)
 
         ## only need the orientation of the gripper
         ## start with generating poses[1]
-        poses[1] = copy.deepcopy(curve_path[0])
-        poses[1].position.x = gp_pos[0]
-        poses[1].position.y = gp_pos[1]
-        poses[1].position.z = gp_pos[2]
+        self.poses[1] = copy.deepcopy(curve_path[0])
+        self.poses[1].position.x = gp_pos[0]
+        self.poses[1].position.y = gp_pos[1]
+        self.poses[1].position.z = gp_pos[2]
         ## z is the offset along z-axis
-        poses[1] = pose_with_offset(poses[1], finger_offset)
+        self.poses[1] = pose_with_offset(self.poses[1], finger_offset)
 
         # self.marker.show(curve_path[0])
         ## based on the frame of link_7 (not the frame of the rod)
         ## z pointing toward right
-        poses[0] = pose_with_offset(poses[1], [-0.01, 0, -0.06])
+        self.poses[0] = pose_with_offset(self.poses[1], [-0.01, 0, -0.06])
 
         ## for straightening the rope
         pose = pose_with_offset(curve_path[-1], [0, 0.10, 0])
@@ -417,28 +425,31 @@ class robot_winding():
         j_traj_2 = interpolation(q2_knots, 2, 0.2)
 
         gp_pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l)
-        poses[2] = transformation2pose(np.array([[ 0,  1, 0, poses[0].position.x+0.04],\
-                                                 [ 0,  0,-1, poses[0].position.y],\
-                                                 [-1, 0, 0, 0.12],\
-                                                 [ 0,  0, 0, 1    ]]))
 
-        poses[3] = pose_with_offset(poses[2], [0, 0, 0.06])
-        poses[4] = copy.deepcopy(poses[3])
-        poses[4].position.y = gp_pos[1] - finger_offset[2]
-        poses[5] = copy.deepcopy(poses[4])
-        poses[5].position.x = curve_path[0].position.x
+        if no_of_wrap == 0:
+            self.poses[2] = transformation2pose(np.array([[ 0,  1, 0, self.poses[0].position.x+0.04],\
+                                                          [ 0,  0,-1, self.poses[0].position.y],\
+                                                          [-1, 0, 0, 0.12],\
+                                                          [ 0,  0, 0, 1    ]]))
+
+            self.poses[3] = pose_with_offset(self.poses[2], [0, 0, 0.06])
+            self.poses[4] = copy.deepcopy(self.poses[3])
+            self.poses[4].position.y = gp_pos[1] - finger_offset[2]
+            self.poses[5] = copy.deepcopy(self.poses[4])
+            self.poses[5].position.x = curve_path[0].position.x
 
         j6_values = [j_start_value]*2+[j_stop_value]+[j_stop_value + pi/2]*5+[j_start_value] 
 
         js_values = []
         pose_seq = [0, 1, 0, 2, 3, 4, 5, 2, 0]
         for i in range(len(pose_seq)):
-            q = self.yumi.ik_with_restrict(0, poses[pose_seq[i]], j6_values[i])
-            if type(q) is int:
-                print('No IK found for facilitate steps')
-                return -1
-            else:
-                js_values.append(q)
+            if (no_of_wrap == 0) or (i not in [2,3,4,5])
+                q = self.yumi.ik_with_restrict(0, self.poses[pose_seq[i]], j6_values[i])
+                if type(q) is int:
+                    print('No IK found for facilitate steps')
+                    return -1
+                else:
+                    js_values.append(q)
 
 
         # menu  = '=========================\n'
