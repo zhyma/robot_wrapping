@@ -65,6 +65,7 @@ class rope_detect:
         self.info = None
 
         self.frontier_2d = None
+        self.detected_pieces = None
 
     def get_rope_info(self):
         ic = image_converter()
@@ -159,19 +160,27 @@ class rope_detect:
 
         return r
 
-    def gp_estimation(self, img, end=0, l=0.15):
+    def gp_estimation(self, img, end=0, l=0.15, use_last_pieces=False):
         ## end: active end (for wrapping) 0 or passive end (for holding) 1
         ## l measured in pixels
         ## anything ends with "p" means pixel space
+
+        print("Use last pices?: {}".format(use_last_pieces))
         
-        r = self.get_ropes(img)
+        if (not use_last_pieces) or (self.detected_pieces is None):
+            ## call Ariadne+
+            print("Call Ariadne+")
+            self.detected_pieces = self.get_ropes(img)
+        else:
+            print("Use the last result to save time")
+        ## otherwise use the last result to save some time
 
         l_expect_p = l/self.scale
         ## get back the grasping point
         if end==1:
-            gp = find_gp(r[1], self.rod_info.box2d, l_expect_p)
+            gp = find_gp(self.detected_pieces[1], self.rod_info.box2d, l_expect_p)
         else:
-            gp = find_gp(r[0], self.rod_info.box2d, l_expect_p)
+            gp = find_gp(self.detected_pieces[0], self.rod_info.box2d, l_expect_p)
 
         #====
 

@@ -69,6 +69,8 @@ class robot_winding():
             print('waiting for RGB data')
             rospy.sleep(0.1)
 
+        self.last_wrap_success = True
+
     def move2pt(self, point, j6_value, group = 0):
         q = self.yumi.ik_with_restrict(group, point, j6_value)
         if type(q) is int:
@@ -227,6 +229,8 @@ class robot_winding():
         i = 0
         with open("log.txt", 'a') as file:
             file.write(",,,new wraps\n")
+
+        self.last_wrap_success = True
         while i < 3:
             [adv, r, lp] = [adv_n, r_n, lp_n]
             param_stable = [False, False]
@@ -245,12 +249,17 @@ class robot_winding():
             ## does not distinguish demo or learning here
             ## for demo, l = 0.18
             l = r*pi*2 + lp
-            result = self.step(i, t_wrapping, r, l, adv, debug = True, execute=execute)
+            use_last_img = False
+            if (option in ['new_learning', 'continue_previous']) and (self.last_wrap_success==False):
+                    use_last_img = True
+
+            result = self.step(i, t_wrapping, r, l, adv, debug = True, execute=execute, use_last_img=use_last_img)
 
             if option in ['new_learning', 'continue_previous']:
                 print("***Learning phrase...***")
                 ## for new_learning==True (start a new learning)
                 if result < 0:
+                    self.last_wrap_success = False
                     ## NO IK found, need to tune self.len
                     if lp > 0.02: ## should always be roughly larger than the size of the gripper
                         lp_n = lp - 0.01
@@ -266,6 +275,7 @@ class robot_winding():
                             file.write("No IK found. Safety distance reached. Reduce r.,")
 
                 else:
+                    self.last_wrap_success = True
                     with open("log.txt", 'a') as file:
                         file.write("Done wrap No. {}.,".format(i))
                     
@@ -278,7 +288,7 @@ class robot_winding():
 
                     ## update L'
                     if last_len_fb > 0:
-                        if ((abs(len_fb-last_len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
+                        if (((last_len_fb-len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
                             ## len_new = len - k2*(len_feedback - threshold2)
                             r_n = r - 0.001*(len_fb-self.rope.info.diameter*1.5)
                             lp_n = 0.06 ## having a new self.r, then start to search L' from beginning
@@ -350,7 +360,7 @@ class robot_winding():
         if execute:
             self.reset()
 
-    def step(self, no_of_wrap, center_t, r, l, advance, debug = False, execute=True):
+    def step(self, no_of_wrap, center_t, r, l, advance, debug = False, execute=True, use_last_img=False):
         curve_path = self.pg.generate_nusadua(center_t, r, l, advance)
 
         self.pg.publish_waypoints(curve_path)
@@ -395,7 +405,7 @@ class robot_winding():
         ## poses[4]: pushback position (away from the rope, x direction. adjust according to current rope's pose)
         ## poses[5]: pushback position (right under the rod)
         ## grab a little bit higher, then move to the starting point of the spiral (somewhere a little bit behind the rod)
-        gp_pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l-0.02)
+        gp_pos = self.rope.gp_estimation(self.ic.cv_image, end=0, l=l-0.02, use_last_pieces=use_last_img)
 
         ## only need the orientation of the gripper
         ## start with generating poses[1]

@@ -57,8 +57,8 @@ if __name__ == '__main__':
     menu += '3' + '. show rod info\n'
     menu += '4' + '. get rope info\n'
     menu += '5' + '. show rope info\n'
-    menu += '6' + '. winding\n'
-    menu += '7' + '. ##demo current parameters\n'
+    # menu += '6' + '. winding\n'
+    # menu += '7' + '. ##demo current parameters\n'
     menu += '0. exit\n'
     menu += 'Your input: '
     while run:
@@ -93,7 +93,8 @@ if __name__ == '__main__':
                     rw.reset()
                 elif choice == '6':
                     ## tune the parameters with 3 wraps
-                    rw.winding()
+                    # rw.winding()
+                    ...
                 elif choice == '7':
                     ##
                     ...

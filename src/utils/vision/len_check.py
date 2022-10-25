@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import copy
 
+import time
+
 from math import sqrt, ceil
 
 import matplotlib.pyplot as plt
@@ -90,9 +92,11 @@ def string_search(img, bottom_edge, debug=True):
     ## find the intersection between the skeleton and the 
     string, _ = bfs(img, rope_top,  [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]], [])
 
-    dist_max = -1
+    dist_max = 1e-6
     valley = []
+    string_img = np.zeros((height, width), dtype=np.uint8)
     for [x,y] in string:
+        string_img[y, x] = 255
         if y - (a*x+b) > 0:
             dist = abs(a*x-y+b)/sqrt(a**2+1)
             if dist > dist_max:
@@ -100,14 +104,21 @@ def string_search(img, bottom_edge, debug=True):
                 dist_max = dist
 
     if debug:
-        mask = np.zeros((height, width), dtype=np.uint8)
+        filename = time.strftime('%Y-%m-%d_%H:%M:%S',time.localtime(time.time()))
+        cv2.imwrite(filename+'_1.jpg', img)
+        mask = cv2.cvtColor(string_img, cv2.COLOR_GRAY2RGB)
         for [x,y] in string:
-            mask[y, x] = 255
+            mask[y, x] = [255, 255, 0]
 
-        cv2.circle(mask, tuple(valley), radius=2, color=255, thickness=-1)
-        cv2.line(mask, tuple(bottom_edge[0]), tuple(bottom_edge[1]), 255, 2)
-        cv2.imshow('',mask)
-        cv2.waitKey(0)
+        print("bottom_edge is: {}".format(bottom_edge))
+
+        if len(valley) > 0:
+            cv2.circle(mask, tuple(valley), radius=2, color=(0,0,255), thickness=-1)
+        cv2.line(mask, tuple(bottom_edge[0]), tuple(bottom_edge[1]), color=(255,0,255), thickness=2)
+
+        cv2.imwrite(filename+'_2.jpg', img)
+        # cv2.imshow('',mask)
+        # cv2.waitKey(0)
 
     print("total len: {}, lowest point distacne: {}".format(len(string), dist_max))
 
