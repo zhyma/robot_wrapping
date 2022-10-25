@@ -65,7 +65,7 @@ def find_rope_diameter(img):
     box = np.int0(box)
     return ceil(diameter), box
 
-def string_search(img, bottom_edge, debug=False):
+def string_search(img, bottom_edge, debug=True):
     ## search for the longest string(path) within a given image
     [height, width] = img.shape
 
@@ -104,8 +104,10 @@ def string_search(img, bottom_edge, debug=False):
         for [x,y] in string:
             mask[y, x] = 255
 
-        # mask = cv2.circle(mask, tuple(valley), radius=2, color=255, thickness=-1)
+        cv2.circle(mask, tuple(valley), radius=2, color=255, thickness=-1)
         cv2.line(mask, tuple(bottom_edge[0]), tuple(bottom_edge[1]), 255, 2)
+        cv2.imshow('',mask)
+        cv2.waitKey(0)
 
     print("total len: {}, lowest point distacne: {}".format(len(string), dist_max))
 
