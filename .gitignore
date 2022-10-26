@@ -4,6 +4,11 @@
 *.png
 *.txt
 
+*.pcd
+*.pdf
+*.gv
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
