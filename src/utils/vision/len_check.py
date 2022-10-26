@@ -105,7 +105,7 @@ def string_search(img, bottom_edge, debug=True):
 
     if debug:
         filename = time.strftime('%Y-%m-%d_%H:%M:%S',time.localtime(time.time()))
-        cv2.imwrite(filename+'_1.jpg', img)
+        cv2.imwrite('./debug/'+filename+'_1.jpg', img)
         mask = cv2.cvtColor(string_img, cv2.COLOR_GRAY2RGB)
         for [x,y] in string:
             mask[y, x] = [255, 255, 0]
@@ -116,7 +116,7 @@ def string_search(img, bottom_edge, debug=True):
             cv2.circle(mask, tuple(valley), radius=2, color=(0,0,255), thickness=-1)
         cv2.line(mask, tuple(bottom_edge[0]), tuple(bottom_edge[1]), color=(255,0,255), thickness=2)
 
-        cv2.imwrite(filename+'_2.jpg', img)
+        cv2.imwrite('./debug/'+filename+'_2.jpg', mask)
         # cv2.imshow('',mask)
         # cv2.waitKey(0)
 
