@@ -1,8 +1,6 @@
-import cv2
+import cv2, copy, time, sys
+sys.path.append('../../')
 import numpy as np
-import copy
-
-import time
 
 from math import sqrt, ceil
 
@@ -10,8 +8,6 @@ import matplotlib.pyplot as plt
 
 from skimage.morphology import skeletonize
 
-import sys
-sys.path.append('../../')
 from utils.vision.bfs import bfs
 from utils.vision.adv_check import helix_adv_mask, find_all_contours
 
@@ -19,6 +15,10 @@ from utils.vision.adv_check import helix_adv_mask, find_all_contours
 def helix_len_mask(h_img, poly, color_range):
     ## extract feature_map from img by using the 2d bounding box
     [height, width] = h_img.shape
+    filename = time.strftime('%m-%d_%H-%M-%S',time.localtime(time.time()))
+    debug_img = copy.deepcopy(h_img)
+    cv2.drawContours(debug_img, poly, 0, 255, 2)
+    cv2.imwrite('./debug/'+filename+'_0.jpg', h_img)
 
     sort_y = poly[poly[:,1].argsort()]
     sort_x = poly[poly[:,0].argsort()]
@@ -104,7 +104,7 @@ def string_search(img, bottom_edge, debug=True):
                 dist_max = dist
 
     if debug:
-        filename = time.strftime('%Y-%m-%d_%H:%M:%S',time.localtime(time.time()))
+        filename = time.strftime('%m-%d_%H-%M-%S',time.localtime(time.time()))
         cv2.imwrite('./debug/'+filename+'_1.jpg', img)
         mask = cv2.cvtColor(string_img, cv2.COLOR_GRAY2RGB)
         for [x,y] in string:
