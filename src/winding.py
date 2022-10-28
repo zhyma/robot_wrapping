@@ -287,32 +287,33 @@ class robot_winding():
 
                     ## update adv starting from the second wrap
                     if i > 0:
-                        len_fb = check_len(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
-                        print("Extra length is: {}".format(len_fb))
-                        with open("./save/log.txt", 'a') as file:
-                            file.write("len_fb is {},".format(len_fb))
+                        ## skip the first wrap, get feedback
+                        # len_fb = check_len(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
+                        # print("Extra length is: {}".format(len_fb))
+                        # with open("./save/log.txt", 'a') as file:
+                        #     file.write("len_fb is {},".format(len_fb))
 
-                        ## update L'
-                        if last_len_fb > 0:
-                            if (((last_len_fb-len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
-                                ## len_new = len - k2*(len_feedback - threshold2)
-                                r_n = r - 0.001*(len_fb-self.rope.info.diameter*1.5)
-                                lp_n = 0.06 ## having a new self.r, then start to search L' from beginning
-                                print("Next self.r to test is {}".format(r_n))
-                                param_updated = True
-                                last_len_fb = len_fb
-                                with open("./save/log.txt", 'a') as file:
-                                    file.write("change r to {:.3},".format(r_n))
+                        # ## update L'
+                        # if last_len_fb > 0:
+                        #     if (((last_len_fb-len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
+                        #         ## len_new = len - k2*(len_feedback - threshold2)
+                        #         r_n = r - 0.001*(len_fb-self.rope.info.diameter*1.5)
+                        #         lp_n = 0.06 ## having a new self.r, then start to search L' from beginning
+                        #         print("Next self.r to test is {}".format(r_n))
+                        #         param_updated = True
+                        #         last_len_fb = len_fb
+                        #         with open("./save/log.txt", 'a') as file:
+                        #             file.write("change r to {:.3},".format(r_n))
                                 
-                            else:
-                                print('The selection of r becomes stable')
-                                param_stable[1] = True
-                                with open("./save/log.txt", 'a') as file:
-                                    file.write("r becomes stable,")
-                        else:
-                            last_len_fb = len_fb
+                        #     else:
+                        #         print('The selection of r becomes stable')
+                        #         param_stable[1] = True
+                        #         with open("./save/log.txt", 'a') as file:
+                        #             file.write("r becomes stable,")
+                        # else:
+                        #     last_len_fb = len_fb
 
-                        ## skip the first wrap (for adv), get feedback
+                        
                         adv_fb = check_adv(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
                         print("Tested advnace is: {}, ".format(adv_fb))
                         with open("./save/log.txt", 'a') as file:
@@ -331,11 +332,9 @@ class robot_winding():
                                 print('The selection of advance becomes stable')
                                 param_stable[1] = True
                                 with open("./save/log.txt", 'a') as file:
-                                    file.write("L' becomes stable,")
+                                    file.write('adv becomes stable,')
                         else:
                             last_adv_fb = adv_fb
-
-                
                 
                 with open('./save/param.txt', 'w') as file:
                     ## first  line: stable param, or [-1.0,-1.0,-1.0] (no params found yet)
@@ -364,10 +363,12 @@ class robot_winding():
 
         ## make a backup
         time_str = time.strftime('%m-%d_%H-%M-%S',time.localtime(time.time()))
-        print('backup current parameters')
+        print('Backup current parameters...')
         with open('param.txt', 'r') as file_in:
-            with open('param_'+time_str+'.txt', 'w') as file_backup:
+            with open('./save/param_'+time_str+'.txt', 'w') as file_backup:
                 file_backup.write(file_in.read())
+
+        print('Backup is done')
 
         if execute:
             self.reset()
