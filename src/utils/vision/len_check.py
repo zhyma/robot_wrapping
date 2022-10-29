@@ -17,8 +17,9 @@ def helix_len_mask(h_img, poly, color_range):
     [height, width] = h_img.shape
     filename = time.strftime('%m-%d_%H-%M-%S',time.localtime(time.time()))
     debug_img = copy.deepcopy(h_img)
-    cv2.drawContours(debug_img, poly, 0, 255, 2)
-    cv2.imwrite('./debug/'+filename+'_0.jpg', h_img)
+    cv2.polylines(debug_img, [poly], 0, 255, 2)
+    
+    cv2.imwrite('./debug/'+filename+'_0.jpg', debug_img)
 
     sort_y = poly[poly[:,1].argsort()]
     sort_x = poly[poly[:,0].argsort()]

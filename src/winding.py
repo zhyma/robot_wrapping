@@ -181,7 +181,7 @@ class robot_winding():
             ## demo wrapping, use constants (l=0.18)
             [adv_n, r_n, lp_n] = [0.0, 0.02, 0.0544]
         else:
-            if len(param_filename) > 0 and os.path.exists(param_filename):
+            if len(param_filename) > 0 and os.path.exists('./save/'+param_filename):
                 lines = []
                 with open('./save/'+param_filename, 'r') as file:
                     lines = file.read().split('\n')
@@ -196,6 +196,7 @@ class robot_winding():
                         ## continue the previous learning
                         [adv_n, r_n, lp_n] = [float(i) for i in lines[1].split(',')]
                         [last_adv_fb, last_len_fb] = [float(i) for i in lines[2].split(',')]
+                        print([adv_n, r_n, lp_n])
                         print('continue previous learning process')
                     else:
                         ## does not prepare the parameters to continue previous learning
@@ -288,31 +289,30 @@ class robot_winding():
                     ## update adv starting from the second wrap
                     if i > 0:
                         ## skip the first wrap, get feedback
-                        # len_fb = check_len(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
-                        # print("Extra length is: {}".format(len_fb))
-                        # with open("./save/log.txt", 'a') as file:
-                        #     file.write("len_fb is {},".format(len_fb))
+                        len_fb = check_len(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
+                        print("Extra length is: {}".format(len_fb))
+                        with open("./save/log.txt", 'a') as file:
+                            file.write("len_fb is {},".format(len_fb))
 
-                        # ## update L'
-                        # if last_len_fb > 0:
-                        #     if (((last_len_fb-len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
-                        #         ## len_new = len - k2*(len_feedback - threshold2)
-                        #         r_n = r - 0.001*(len_fb-self.rope.info.diameter*1.5)
-                        #         lp_n = 0.06 ## having a new self.r, then start to search L' from beginning
-                        #         print("Next self.r to test is {}".format(r_n))
-                        #         param_updated = True
-                        #         last_len_fb = len_fb
-                        #         with open("./save/log.txt", 'a') as file:
-                        #             file.write("change r to {:.3},".format(r_n))
+                        ## update L'
+                        if last_len_fb > 0:
+                            if (((last_len_fb-len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
+                                ## len_new = len - k2*(len_feedback - threshold2)
+                                r_n = r - 0.001*(len_fb-self.rope.info.diameter*1.5)
+                                lp_n = 0.06 ## having a new self.r, then start to search L' from beginning
+                                print("Next self.r to test is {}".format(r_n))
+                                param_updated = True
+                                last_len_fb = len_fb
+                                with open("./save/log.txt", 'a') as file:
+                                    file.write("change r to {:.3},".format(r_n))
                                 
-                        #     else:
-                        #         print('The selection of r becomes stable')
-                        #         param_stable[1] = True
-                        #         with open("./save/log.txt", 'a') as file:
-                        #             file.write("r becomes stable,")
-                        # else:
-                        #     last_len_fb = len_fb
-
+                            else:
+                                print('The selection of r becomes stable')
+                                param_stable[1] = True
+                                with open("./save/log.txt", 'a') as file:
+                                    file.write("r becomes stable,")
+                        else:
+                            last_len_fb = len_fb
                         
                         adv_fb = check_adv(self.ic.cv_image, rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
                         print("Tested advnace is: {}, ".format(adv_fb))
@@ -364,7 +364,7 @@ class robot_winding():
         ## make a backup
         time_str = time.strftime('%m-%d_%H-%M-%S',time.localtime(time.time()))
         print('Backup current parameters...')
-        with open('param.txt', 'r') as file_in:
+        with open('./save/param.txt', 'r') as file_in:
             with open('./save/param_'+time_str+'.txt', 'w') as file_backup:
                 file_backup.write(file_in.read())
 
