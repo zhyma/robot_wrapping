@@ -19,7 +19,8 @@ def helix_len_mask(h_img, poly, color_range):
     debug_img = copy.deepcopy(h_img)
     cv2.polylines(debug_img, [poly], 0, 255, 2)
     
-    cv2.imwrite('./debug/'+filename+'_0.jpg', debug_img)
+    cv2.imwrite('./debug/'+filename+'_0.jpg', h_img)
+    cv2.imwrite('./debug/'+filename+'_1.jpg', debug_img)
 
     sort_y = poly[poly[:,1].argsort()]
     sort_x = poly[poly[:,0].argsort()]
@@ -106,7 +107,7 @@ def string_search(img, bottom_edge, debug=True):
 
     if debug:
         filename = time.strftime('%m-%d_%H-%M-%S',time.localtime(time.time()))
-        cv2.imwrite('./debug/'+filename+'_1.jpg', img)
+        cv2.imwrite('./debug/'+filename+'_2.jpg', img)
         mask = cv2.cvtColor(string_img, cv2.COLOR_GRAY2RGB)
         for [x,y] in string:
             mask[y, x] = [255, 255, 0]
@@ -117,7 +118,7 @@ def string_search(img, bottom_edge, debug=True):
             cv2.circle(mask, tuple(valley), radius=2, color=(0,0,255), thickness=-1)
         cv2.line(mask, tuple(bottom_edge[0]), tuple(bottom_edge[1]), color=(255,0,255), thickness=2)
 
-        cv2.imwrite('./debug/'+filename+'_2.jpg', mask)
+        cv2.imwrite('./debug/'+filename+'_3.jpg', mask)
         # cv2.imshow('',mask)
         # cv2.waitKey(0)
 

@@ -295,10 +295,12 @@ class robot_winding():
                             file.write("len_fb is {},".format(len_fb))
 
                         ## update L'
+                        ## len_new = len - k2*(len_feedback - threshold2)
+                        d_r =  0.001*(len_fb-self.rope.info.diameter*1.5) ## delta_r
                         if last_len_fb > 0:
-                            if (((last_len_fb-len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
-                                ## len_new = len - k2*(len_feedback - threshold2)
-                                r_n = r - 0.001*(len_fb-self.rope.info.diameter*1.5)
+                            # if (((last_len_fb-len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
+                            if ((d_r > 0.002) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
+                                r_n = r - d_r
                                 lp_n = 0.06 ## having a new self.r, then start to search L' from beginning
                                 print("Next self.r to test is {}".format(r_n))
                                 param_updated = True
@@ -308,7 +310,7 @@ class robot_winding():
                                 
                             else:
                                 print('The selection of r becomes stable')
-                                param_stable[1] = True
+                                param_stable[0] = True
                                 with open("./save/log.txt", 'a') as file:
                                     file.write("r becomes stable,")
                         else:
@@ -319,10 +321,12 @@ class robot_winding():
                         with open("./save/log.txt", 'a') as file:
                             file.write("adv_fb is {},".format(adv_fb))
                         
+                        ## adv_new = adv - k1*(adv_feedback - threshold1)
+                        d_adv = 0.04*(adv_fb - 0.2)
                         if last_adv_fb > 0:
-                            if (abs(adv_fb-last_adv_fb)/adv_fb > 0.1) or adv_fb > 0.5:
-                                ## adv_new = adv - k1*(adv_feedback - threshold1)
-                                adv_n = adv - 0.04*(adv_fb - 0.2)
+                            # if (abs(adv_fb-last_adv_fb)/adv_fb > 0.1) or adv_fb > 0.5:
+                            if (abs(d_adv) > 0.003) or adv_fb > 0.5:
+                                adv_n = adv - d_adv
                                 print("Next self.adv to test is {}".format(adv_n))
                                 param_updated = True
                                 last_adv_fb = adv_fb
@@ -570,7 +574,11 @@ if __name__ == '__main__':
                 rw.winding('pretuned_demo')
             elif choice == '3':
                 ## wrap with current parameters
-                rw.winding('demo_current')
+                param_filename = input('Checkpoint file: (a param file under ./save folder, default: param.txt)\n')
+                if param_filename == '':
+                    param_filename = 'param.txt'
+                    print('use the default param.txt file')
+                rw.winding('demo_current', param_filename)
             elif choice == '4':
                 ## start a new learning, tuning parameters automatically
                 [os.remove('./debug/'+file) for file in os.listdir('./debug') if file.endswith('.jpg')]

@@ -40,40 +40,45 @@ class rs2pc():
 
 
     def img_callback(self, data):
-        height = data.height
-        width = data.width
-        np_cloud = np.zeros((height*width,3))
-        for iy in range(height):
-            for ix in range(width):
-                idx = iy*width+ix
-                z = (data.data[idx*2+1]*256+data.data[idx*2])/1000.0
-                if z!=0:
-                    ## x, y are on the camera plane, z is the depth
-                    #np_cloud[idx][0] = z*(ix-self.k[2])/self.k[0] #x
-                    #np_cloud[idx][1] = z*(iy-self.k[5])/self.k[4] #y
-                    #np_cloud[idx][2] = z
-                    ## same coordinate as `/camera/depth/image_rect_raw`
-                    ## y (left & right), z (up & down) are on the camera plane, x is the depth
-                    np_cloud[idx][1] = -z*(ix-self.k[2])/self.k[0]
-                    np_cloud[idx][2] = -z*(iy-self.k[5])/self.k[4]
-                    np_cloud[idx][0] = z
+        if self.is_k_empty == False:
+            self.height = data.height
+            self.width = data.width
 
-        self.pcd.points = o3d.utility.Vector3dVector(np_cloud)
-        ## publish as a ROS message
-        # header = Header()
-        # header.stamp = rospy.Time.now()
-        # header.frame_id = "camera_depth_frame"
-        # fields = self.FIELDS_XYZ
+            np_cloud = np.zeros((self.height*self.width,3))
+            # print(self.k)
+            for iy in range(self.height):
+                for ix in range(self.width):
+                    idx = iy*self.width+ix
+                    z = (data.data[idx*2+1]*256+data.data[idx*2])/1000.0
+                    if z!=0:
+                        ## x, y are on the camera plane, z is the depth
+                        #np_cloud[idx][0] = z*(ix-self.k[2])/self.k[0] #x
+                        #np_cloud[idx][1] = z*(iy-self.k[5])/self.k[4] #y
+                        #np_cloud[idx][2] = z
+                        ## same coordinate as `/camera/depth/image_rect_raw`
+                        ## y (left & right), z (up & down) are on the camera plane, x is the depth
+                        np_cloud[idx][1] = -z*(ix-self.k[2])/self.k[0]
+                        np_cloud[idx][2] = -z*(iy-self.k[5])/self.k[4]
+                        np_cloud[idx][0] = z
 
-        # pc2_data = pc2.create_cloud(header, fields, np.asarray(np_cloud))
-        # self.pub.publish(pc2_data)
-        self.is_data_updated = True
+            self.pcd.points = o3d.utility.Vector3dVector(np_cloud)
+            ## publish as a ROS message
+            # header = Header()
+            # header.stamp = rospy.Time.now()
+            # header.frame_id = "camera_depth_frame"
+            # fields = self.FIELDS_XYZ
+
+            # pc2_data = pc2.create_cloud(header, fields, np.asarray(np_cloud))
+            # self.pub.publish(pc2_data)
+            self.is_data_updated = True
 
     def cam_info_callback(self, data):
         if self.is_k_empty:
             for i in range(9):
                 self.k[i] = data.K[i]
-            self.is_k_empty = False
+
+            if (self.k[0] != 0) and (self.k[4] != 0):
+                self.is_k_empty = False
 
 def image_callback(msg):
     try:
