@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import copy
 
-from math import sqrt
+from math import sqrt, pi, atan2
 
 import matplotlib.pyplot as plt
 
@@ -57,9 +57,8 @@ def find_all_contours(img, size_min=50):
     cont = [contours[i] for i in rope_piece]
     return cont
 
-def get_single_hull(img):
-    cont = find_all_contours(img)
-    cont = np.vstack([i for i in cont])
+def get_single_hull(contours):
+    cont = np.vstack([i for i in contours])
     hull = cv2.convexHull(cont)
     return hull
 
@@ -84,23 +83,48 @@ def check_adv(img, poly, hue, rope_diameter):
 
     mask, offset, _ = helix_adv_mask(cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[:,:,0], poly, hue)
 
-    ## need to know the rope diameter, and the bottom edge of the rod
+    sort_y = poly[poly[:,1].argsort()]
+    sort_x = poly[poly[:,0].argsort()]
+    y1 = sort_y[0,1]
+    y2 = sort_y[-1,1]
+    x1 = sort_x[0,0]
+    x2 = sort_x[-1,0]
+
+    selected_img = copy.deepcopy(img[y1:y2,x1:x2])
+
+    # cv2.imwrite('./adv_rgb.jpg', selected_img)
+
     [height, width] = mask.shape
 
+    ## fill in holes
     new_mask = np.zeros((height, width), dtype=np.uint8)
-
     cont = find_all_contours(mask)
     cv2.fillPoly(new_mask, pts=[i for i in cont], color=255)
 
-    # display_img(new_mask)
+    be = np.array([[sort_y[-2][0]-x1, sort_y[-2][1]-y1], [sort_y[-1][0]-x1, sort_y[-1][1]-y1]])
+    be = be[be[:,0].argsort()] ## bottom edge
+    angle = atan2((be[1][1]-be[0][1]),(be[1][0]-be[0][0]))*180/pi
+    rot_mat = cv2.getRotationMatrix2D(center=(width/2,height/2),angle=angle, scale=1)
+    rot_img = cv2.warpAffine(src=new_mask, M=rot_mat, dsize=(width, height))
+    re = np.array([[sort_x[2,0]-x1,sort_x[2,1]-y1], [sort_x[3,0]-x1,sort_x[3,1]-y1]])
+    re = re[re[:,1].argsort()] ## right edge
+    new_re = np.hstack([re, np.array([[1], [1]])])
+    new_re = np.dot(rot_mat, new_re.T).T
+    new_re = new_re.astype(np.uint8)
 
-    img4debug = np.zeros((height, width), dtype=np.uint8)
+    # cv2.imwrite("rot_mask.jpg", rot_img)
+
+
+    # img4debug = np.zeros((height, width, 3), dtype=np.uint8)
+    img4debug = cv2.cvtColor(rot_img, cv2.COLOR_GRAY2RGB)
+    color1 = np.array([211,178,21])
+    color2 = np.array([51,0,255])
     # ## find the right most contour
     last_rope_area = 0
     last_gap_area = 0
 
-    for iy in range(0, height):
-        new_mask[iy, width-1] = 0
+    for iy in range(new_re[0,1]+1, new_re[1,1]):
+        rot_img[iy, width-1] = 0
 
         layer_rope_area = 0
         layer_gap_area = 0
@@ -108,7 +132,7 @@ def check_adv(img, poly, hue, rope_diameter):
         ix = width-2
         ## skip empty part
         while ix >= 1:
-            if new_mask[iy, ix] < 100:
+            if rot_img[iy, ix] < 100:
                 ix-=1
                 continue
             else:
@@ -116,16 +140,17 @@ def check_adv(img, poly, hue, rope_diameter):
 
         ## find the last wrap, meet the first gap or two wraps are cling to each other
         cnt_n = 0 ## number of consecutive masked pixels
-        while mask[iy, ix] > 100 and (ix >= 1):
-            if cnt_n <= rope_diameter:
-                img4debug[iy, ix] = 255
-            else:
-                img4debug[iy, ix] = 150
+        while rot_img[iy, ix] > 100 and (ix >= 1):
+            # if cnt_n <= rope_diameter:
+            #     img4debug[iy, ix] = 255
+            # else:
+            #     img4debug[iy, ix] = 150
+            img4debug[iy,ix] = color1
             layer_rope_area += 1
             cnt_n += 1
             ix -= 1
             ## found two clinged wraps
-            if cnt_n > rope_diameter:
+            if cnt_n > rope_diameter*1.5:
                 layer_rope_area += rope_diameter
                 layer_gap_area = -1
                 break
@@ -134,7 +159,8 @@ def check_adv(img, poly, hue, rope_diameter):
             layer_gap_area = 0
         else:
             ## scan for layer gap_area
-            while mask[iy, ix] < 100 and (ix >= 1):
+            while rot_img[iy, ix] < 100 and (ix >= 1):
+                img4debug[iy, ix] = color2
                 layer_gap_area += 1
                 ix -= 1
 
@@ -147,17 +173,11 @@ def check_adv(img, poly, hue, rope_diameter):
         last_rope_area += layer_rope_area
         last_gap_area  += layer_gap_area
 
-        img4debug[iy, ix] = 255
+    print("find rope area: {}, find gap area: {}, percentage: ".format(last_rope_area, last_gap_area), end='')
+    print(last_gap_area/(last_gap_area+last_rope_area))
 
-    print("find rope area: {}, find gap area: {}, percentage: {}".format(last_rope_area, last_gap_area, last_gap_area/(last_gap_area+last_rope_area)))
+    # cv2.imwrite("adv_cluster.jpg", img4debug)
 
-    # new_img = copy.deepcopy(img)
-    # for iy in range(height):
-    #     for ix in range(width):
-    #         if img4debug[iy, ix] > 200:
-    #             new_img[iy+offset[1], ix+offset[0]][1] = 255
-    #         elif img4debug[iy, ix] > 100 and img4debug[iy, ix] < 200:
-    #             new_img[iy+offset[1], ix+offset[0]][2] = 255
 
     return last_gap_area/(last_gap_area+last_rope_area)
 
