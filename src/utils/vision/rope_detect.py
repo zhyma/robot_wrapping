@@ -23,7 +23,7 @@ sys.path.append('../../')
 from utils.vision.rgb_camera import image_converter
 from utils.vision.rope_pre_process import get_subimg, hue_detection
 from utils.vision.rope_post_process import get_rope_mask, find_ropes, find_gp
-from utils.vision.adv_check import helix_adv_mask, get_single_hull
+from utils.vision.adv_check import helix_adv_mask, get_single_hull, find_all_contours
 from utils.vision.len_check import find_rope_diameter
 
 def generateImage(img_np):
@@ -92,8 +92,9 @@ class rope_detect:
         # cv2.imshow('image', mask)
         # show_window = True
         # cv2.waitKey(0)
-        
-        hull = get_single_hull(mask)
+
+        cont = find_all_contours(mask)        
+        hull = get_single_hull(cont)
         rect = cv2.minAreaRect(hull)
         box = np.int0(cv2.boxPoints(rect))
 
