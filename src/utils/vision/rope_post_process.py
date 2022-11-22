@@ -50,16 +50,21 @@ def rope_grow(rope_seed, feature_mask):
 
     return mixed
 
-def get_rope_mask(shape, crop_corners, dl_mask, feature_mask):
-    rope_mask = rope_grow(dl_mask, feature_mask)
+def get_rope_skeleton(shape, crop_corners, dl_mask, feature_mask, debug=False):
 
-    flesh = np.where(rope_mask>100, 1, 0)
+    rope_mask = rope_grow(dl_mask, feature_mask)
+    full_mask = expand_mask(shape, crop_corners, rope_mask)
+
+    flesh = np.where(full_mask>100, 1, 0)
+
     skeleton = skeletonize(flesh)
     ropes = (np.where(skeleton==True, 255, 0)).astype(np.uint8)
 
-    full_mask = expand_mask(shape, crop_corners, ropes)
+    if debug:
+        cv2.imshow("ropes", ropes)
+        cv2.waitKey(0)
 
-    return full_mask
+    return ropes
 
 def find_ropes(img):
     

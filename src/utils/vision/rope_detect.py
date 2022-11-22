@@ -22,7 +22,7 @@ import sys
 sys.path.append('../../')
 from utils.vision.rgb_camera import image_converter
 from utils.vision.rope_pre_process import get_subimg, hue_detection
-from utils.vision.rope_post_process import get_rope_mask, find_ropes, find_gp
+from utils.vision.rope_post_process import get_rope_skeleton, find_ropes, find_gp
 from utils.vision.adv_check import helix_adv_mask, get_single_hull, find_all_contours
 from utils.vision.len_check import find_rope_diameter
 
@@ -124,7 +124,7 @@ class rope_detect:
             
         return new_pose
 
-    def get_ropes(self, img):
+    def get_ropes(self, img, debug=False):
         if self.info is None:
             print('No rope information, working on one')
             self.get_rope_info()
@@ -134,6 +134,10 @@ class rope_detect:
 
         ## crop to get the workspace
         crop_corners, cropped_img, feature_mask = get_subimg(img, self.rod_info.box2d, self.info.hue)
+
+        if debug:
+            cv2.imshow("input_to_ariadne", cropped_img)
+            cv2.waitKey(0)
 
         rospy.wait_for_service('get_splines')
         try:
@@ -148,8 +152,20 @@ class rope_detect:
         cv_image = self.bridge.imgmsg_to_cv2(resp1.mask_image, desired_encoding='passthrough')
         gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
 
-        full_mask = get_rope_mask(img.shape[:2], crop_corners, gray, feature_mask)
-        r = find_ropes(full_mask)
+        if debug:
+            cv2.imshow("gray", gray)
+            cv2.waitKey(0)
+
+        if debug:
+            cv2.imshow("feature_mask", feature_mask)
+            cv2.waitKey(0)
+
+        rope_skeleton = get_rope_skeleton(img.shape[:2], crop_corners, gray, feature_mask)
+        r = find_ropes(rope_skeleton)
+
+        if debug:
+            cv2.imshow("rope_skeleton", rope_skeleton)
+            cv2.waitKey(0)
 
         self.masked_img = copy.deepcopy(img)
         self.masked_img = cv2.polylines(self.masked_img, [self.rod_info.box2d], isClosed=True, color=(255, 255, 0), thickness=3)

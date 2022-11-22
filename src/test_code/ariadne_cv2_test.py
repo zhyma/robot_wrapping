@@ -245,9 +245,12 @@ def main(img, box2d, serial_number):
 
     bridge = CvBridge()
 
-    input_img = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
-    input_img = cv2.resize(input_img, (640,480)) # resize necessary for the network model
+    # input_img = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
+    input_img = cv2.resize(cropped, (640,480)) # resize necessary for the network model
     img_msg = generateImage(input_img)
+
+    cv2.imshow("input_img", input_img)
+    cv2.waitKey(0)
 
     rospy.wait_for_service('get_splines')
     try:
@@ -263,63 +266,66 @@ def main(img, box2d, serial_number):
     # print(resp1.tck)
     dl_mask = bridge.imgmsg_to_cv2(resp1.mask_image, desired_encoding='passthrough')
 
-    masked = apply_dl_mask(cropped, dl_mask)
+    cv2.imshow("dl_mask", dl_mask)
+    cv2.waitKey(0)
 
-    ## img.shape[1]: x/width
-    ## img.shape[0]: y/height
+    # masked = apply_dl_mask(cropped, dl_mask)
 
-    l = 0.1 ## expecting rope length, unit: meter
-    x3_p = rod_info.box2d[2][0]
-    x4_p = rod_info.box2d[3][0]
-    y3_p = rod_info.box2d[2][1]
-    y4_p = rod_info.box2d[3][1]
-    l_pixel = sqrt((x3_p-x4_p)**2+(y3_p-y4_p)**2)
-    scale = rod_info.l/l_pixel
-    print(l/scale)
-    checked = None
-    for i in range(len(resp1.tck)):
-        spline = eval_spline(resp1.tck[i], crop_corners, (640,480))
-        checked = check_spline(spline, rod_info.box2d, l/scale)
-        if checked is None:
-            continue
-        else:
-            break
+    # ## img.shape[1]: x/width
+    # ## img.shape[0]: y/height
 
-    if checked is None:
-        print("No possible rope end is found")
-    else:
-        xc_p = (rod_info.box2d[2][0] + rod_info.box2d[0][0])/2
-        yc_p = (rod_info.box2d[2][1] + rod_info.box2d[0][1])/2
+    # l = 0.1 ## expecting rope length, unit: meter
+    # x3_p = rod_info.box2d[2][0]
+    # x4_p = rod_info.box2d[3][0]
+    # y3_p = rod_info.box2d[2][1]
+    # y4_p = rod_info.box2d[3][1]
+    # l_pixel = sqrt((x3_p-x4_p)**2+(y3_p-y4_p)**2)
+    # scale = rod_info.l/l_pixel
+    # print(l/scale)
+    # checked = None
+    # for i in range(len(resp1.tck)):
+    #     spline = eval_spline(resp1.tck[i], crop_corners, (640,480))
+    #     checked = check_spline(spline, rod_info.box2d, l/scale)
+    #     if checked is None:
+    #         continue
+    #     else:
+    #         break
 
-        dx_p = checked[0] - xc_p
-        dy_p = checked[1] - yc_p
+    # if checked is None:
+    #     print("No possible rope end is found")
+    # else:
+    #     xc_p = (rod_info.box2d[2][0] + rod_info.box2d[0][0])/2
+    #     yc_p = (rod_info.box2d[2][1] + rod_info.box2d[0][1])/2
 
-        # estimate distance, actual, measured in meters
-        dy = dx_p * scale
-        dz = -dy_p * scale
+    #     dx_p = checked[0] - xc_p
+    #     dy_p = checked[1] - yc_p
 
-        x = rod_info.pose.position.x + rod_info.r
-        y = rod_info.pose.position.y + dy
-        z = rod_info.pose.position.z + dz
+    #     # estimate distance, actual, measured in meters
+    #     dy = dx_p * scale
+    #     dz = -dy_p * scale
 
-        print([x,y,z])
+    #     x = rod_info.pose.position.x + rod_info.r
+    #     y = rod_info.pose.position.y + dy
+    #     z = rod_info.pose.position.z + dz
 
-        # plt.rcParams['figure.figsize']=(12,10)
-        fig = plt.figure(figsize=(12,10))
-        ax0 = plt.subplot2grid((2,2),(0,0))
-        ax1 = plt.subplot2grid((2,2),(0,1))
-        ax2 = plt.subplot2grid((2,2),(1,0),colspan=2)
+    #     print([x,y,z])
 
-        ax0.imshow(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
-        ax1.imshow(cv2.cvtColor(dl_mask, cv2.COLOR_BGR2RGB))
+    #     # plt.rcParams['figure.figsize']=(12,10)
+    #     fig = plt.figure(figsize=(12,10))
+    #     ax0 = plt.subplot2grid((2,2),(0,0))
+    #     ax1 = plt.subplot2grid((2,2),(0,1))
+    #     ax2 = plt.subplot2grid((2,2),(1,0),colspan=2)
 
-        ax2.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        ax2.plot(spline[0], spline[1], color='c', linewidth=2)
-        ax2.scatter(checked[0], checked[1], color='b', linewidth=5)
+    #     ax0.imshow(cv2.cvtColor(masked, cv2.COLOR_BGR2RGB))
+    #     ax1.imshow(cv2.cvtColor(dl_mask, cv2.COLOR_BGR2RGB))
 
-        plt.tight_layout()
-        plt.show()
-        # plt.savefig(str(serial_number)+'.png')
+    #     ax2.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    #     ax2.plot(spline[0], spline[1], color='c', linewidth=2)
+    #     ax2.scatter(checked[0], checked[1], color='b', linewidth=5)
+
+    #     plt.tight_layout()
+    #     plt.show()
+    #     # plt.savefig(str(serial_number)+'.png')
 
 
 if __name__ == '__main__': 
