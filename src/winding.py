@@ -236,7 +236,7 @@ class robot_winding():
 
         self.last_wrap_success = True
         time_str = time.strftime('%m-%d_%H-%M-%S',time.localtime(time.time()))
-        while i < 3:
+        while i < 1:
             [adv, r, lp] = [adv_n, r_n, lp_n]
             param_stable = [False, False]
             print("\n========")
@@ -489,12 +489,12 @@ class robot_winding():
         if execute:
             # print('move closer to the rope')
             self.j_ctrl.robot_setjoint(0, js_values[0])
-            rospy.sleep(2)
+            rospy.sleep(1.2)
             self.j_ctrl.robot_setjoint(0, js_values[1])
-            rospy.sleep(2)
+            rospy.sleep(0.5)
             ## grabbing the rope
             self.gripper.l_close()
-            rospy.sleep(2)
+            rospy.sleep(0.8)
 
             # ## test the first two points of the curve
             # self.j_ctrl.exec(0, [j_traj_1[0], j_traj_1[1]], 0.2)
@@ -507,17 +507,17 @@ class robot_winding():
             # self.marker.show(pt_2)
             self.j_ctrl.exec(0, j_traj_2, 0.2)
 
-            rospy.sleep(2)
+            rospy.sleep(1)
             self.gripper.l_open()
 
             # print('move out from the grasping pose')
             ## left grippermove to the side
             self.j_ctrl.robot_setjoint(0, js_values[2])
-            # rospy.sleep(2)
+            rospy.sleep(0.3)
 
             # print('push the rope back a little bit')
             for i in [3,4,5,6,7]:
-                rospy.sleep(2)
+                rospy.sleep(0.3)
                 self.j_ctrl.robot_setjoint(0, js_values[i])
 
             # print('move out of the view')
@@ -534,7 +534,9 @@ class robot_winding():
         ## reset the robot
         print('reset the robot pose')
         self.gripper.l_open()
+        rospy.sleep(1)
         self.gripper.r_open()
+        rospy.sleep(1)
         self.j_ctrl.robot_default_l_low()
         self.j_ctrl.robot_default_r_low()
 
