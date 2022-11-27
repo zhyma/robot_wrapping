@@ -236,7 +236,7 @@ class robot_winding():
 
         self.last_wrap_success = True
         time_str = time.strftime('%m-%d_%H-%M-%S',time.localtime(time.time()))
-        while i < 1:
+        while i < 3:
             [adv, r, lp] = [adv_n, r_n, lp_n]
             param_stable = [False, False]
             print("\n========")
@@ -358,7 +358,7 @@ class robot_winding():
                     file.write("\n")
 
                 if param_stable[0] and param_stable[1]:
-                    print("****Find the best parameters: adv: {.4f}, r: {.4f}, L': {.4f}****".format(adv_s, r_s, lp_s))
+                    print("****Find the best parameters: adv: {:.4f}, r: {:.4f}, L': {:.4f}****".format(adv_s, r_s, lp_s))
                     print("====LEARNING END====")
                     break
 
@@ -374,6 +374,8 @@ class robot_winding():
 
         print('Backup is done')
 
+        cv2.imwrite('./save'+time_str+'.jpg', self.ic.cv_image)
+
         if execute:
             self.reset()
 
@@ -382,6 +384,8 @@ class robot_winding():
 
         self.pg.publish_waypoints(curve_path)
 
+        ## based on the frame of link_7 (not the frame of the rod)
+        ## z pointing toward right
         finger_offset = [0, 0, -0.10]
 
 
