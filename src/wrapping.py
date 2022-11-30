@@ -71,9 +71,9 @@ class robot_wrapping():
             print('waiting for RGB data')
             rospy.sleep(0.1)
 
-        self.last_wrap_success = True
+        self.wrap_success = True
 
-        [self.adv_s, self,r_s, self.lp_s] = [-1.0, -1.0, -1.0] ## L prime, or L', 's' stand for stable result
+        [self.adv_s, self.r_s, self.lp_s] = [-1.0, -1.0, -1.0] ## L prime, or L', 's' stand for stable result
         [self.adv,   self.r,   self.lp  ] = [-1.0, -1.0, -1.0]
         [self.adv_n, self.r_n, self.lp_n] = [-1.0, -1.0, -1.0] ## L prime, or L', 'n' stand for next to test
         [self.last_adv_fb, self.last_len_fb] = [-10, -10]
@@ -190,8 +190,7 @@ class robot_wrapping():
              ## start a new one with default parameters.
             ## three parameters to tune: advance, r and L'. L = 2*pi*r+L'
             [self.adv_n, self.r_n, self.lp_n] = [0.02, self.rod.info.r * 1.5, 0.06] ## meter
-            [self.last_adv_fb, self.last_len_fb] = [float(i) for i in lines[2].split(',')]
-
+            [self.last_adv_fb, self.last_len_fb] = [-10, -10]
         else:
             print("No such an option.")
             return
@@ -202,15 +201,10 @@ class robot_wrapping():
         with open("./save/log.txt", 'a') as file:
             file.write(",,,new wraps\n")
 
-        self.last_wrap_success = True
+        self.wrap_success = False
 
-        [self.adv, self.r, self.lp] = [self.adv_n, self.r_n, self.lp_n]
         param_stable = [False, False]
         print("\n========")
-        
-        print("Current wrap {}, @{}\nparameters are:\nadv: {:.3}\nr: {:.3}\nlen: {:.3}".format(self.wrap_no, self.time_str, self.adv, self.r, self.lp))
-        with open("./save/log.txt", 'a') as file:
-            file.write("{:.3},{:.3},{:.3},".format(self.adv, self.r, self.lp))
 
         param_updated = False
         ## find the left most wrap on the rod
@@ -219,49 +213,64 @@ class robot_wrapping():
         wrapping_pose.position.z = 0.25
         self.marker.show(wrapping_pose)
 
-        l = self.r*pi*2 + self.lp
         use_last_img = False
-        if self.last_wrap_success==False:
+        if self.wrap_success==False:
             use_last_img = True
 
-        while self.last_wrap_success == False:
+        while self.wrap_success == False:
+            [self.adv, self.r, self.lp] = [self.adv_n, self.r_n, self.lp_n]
+            l = self.r*pi*2 + self.lp
+            print("Current wrap {}, @{}\nparameters are:\nadv: {:.3}\nr: {:.3}\nlen: {:.3}".format(self.wrap_no, self.time_str, self.adv, self.r, self.lp))
+            with open("./save/log.txt", 'a') as file:
+                file.write("{:.3},{:.3},{:.3},".format(self.adv, self.r, self.lp))
             result = self.step(self.wrap_no, t_wrapping, self.r, l, self.adv, debug = True, execute=execute, use_last_img=use_last_img)
             if result < 0:
-                    self.last_wrap_success = False
-                    ## NO IK found, need to tune self.len
-                    if self.lp > 0.02: ## should always be roughly larger than the size of the gripper
-                        self.lp_n = self.lp - 0.01
-                        print("Next L' to test is {}".format(self.lp_n))
-                        param_updated = True
-                        with open("./save/log.txt", 'a') as file:
-                            file.write("No IK found. Reduce L'.,")
-                    else:
-                        print('Safety distance between the gripper and the rod cannot be guaranteed!')
-                        self.r_n = self.r - 0.005 ## try to reduce the r instead?
-                        self.lp_n = 0.06
-                        with open("./save/log.txt", 'a') as file:
-                            file.write("No IK found. Safety distance reached. Reduce r.,")
+                self.wrap_success = False
+                ## NO IK found, need to tune self.len
+                if self.lp > 0.02: ## should always be roughly larger than the size of the gripper
+                    self.lp_n = self.lp - 0.01
+                    print("Next L' to test is {}".format(self.lp_n))
+                    param_updated = True
+                    with open("./save/log.txt", 'a') as file:
+                        file.write("No IK found. Reduce L'.,")
+                else:
+                    print('Safety distance between the gripper and the rod cannot be guaranteed!')
+                    self.r_n = self.r - 0.005 ## try to reduce the r instead?
+                    self.lp_n = 0.06
+                    with open("./save/log.txt", 'a') as file:
+                        file.write("No IK found. Safety distance reached. Reduce r.,")
             else:
-                self.last_wrap_success = True
+                self.wrap_success = True
                 with open("./save/log.txt", 'a') as file:
                     file.write("Done wrap,")
                 print("***Do one wrap successfully***")
 
         if input_option in ['new_learning', 'continue_previous']:
-            choice = input('Accept this wrapping result?(Y/N)')
-            if not (choice == 'y' or 'Y'):
-                print('Choose not to accept current wrapping result, will not use this result for learning.')
-                return
+            len_fb = check_len(self.ic.cv_image, self.rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
+            print("Extra length is: {}".format(len_fb))
+
+            adv_fb = check_adv(self.ic.cv_image, self.rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
+            print("Tested advnace is: {}, ".format(adv_fb))
+
+            wait_for_input = True
+            while wait_for_input:
+                choice = input('Accept this wrapping result?(Y/N)')
+                if choice == 'y' or choice == 'Y':
+                    wait_for_input = False
+                elif choice == 'n' or choice == 'N':
+                    print('Choose not to accept current wrapping result, will not use this result for learning.')
+                    return
+                else:
+                    pass
+
+            with open("./save/log.txt", 'a') as file:
+                file.write("len_fb is {},".format(len_fb))
+                file.write("adv_fb is {},".format(adv_fb))
 
             self.wrap_no += 1
 
             print("***Learning phrase...***")
-            ## skip the first wrap, get feedback
-            len_fb = check_len(self.ic.cv_image, self.rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
-            print("Extra length is: {}".format(len_fb))
-            with open("./save/log.txt", 'a') as file:
-                file.write("len_fb is {},".format(len_fb))
-
+            
             ## update L'
             ## len_new = len - k2*(len_feedback - threshold2)
             d_r =  0.001*(len_fb-self.rope.info.diameter*1.5) ## delta_r
@@ -283,11 +292,6 @@ class robot_wrapping():
                         file.write("r becomes stable,")
             else:
                 self.last_len_fb = len_fb
-            
-            adv_fb = check_adv(self.ic.cv_image, self.rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
-            print("Tested advnace is: {}, ".format(adv_fb))
-            with open("./save/log.txt", 'a') as file:
-                file.write("adv_fb is {},".format(adv_fb))
             
             ## adv_new = adv - k1*(adv_feedback - threshold1)
             d_adv = 0.04*(adv_fb - 0.2)
@@ -332,12 +336,11 @@ class robot_wrapping():
         ## make a backup
         print('Backup current parameters...')
         with open('./save/param.txt', 'r') as file_in:
-            with open('./save/param_'+self.time_str + '_' + self.wrap_no + '.txt', 'w') as file_backup:
+            with open('./save/param_'+self.time_str + '_' + str(self.wrap_no) + '.txt', 'w') as file_backup:
                 file_backup.write(file_in.read())
 
-        cv2.imwrite('./save'+self.time_str+ '_' + self.wrap_no + '.jpg', self.ic.cv_image)
+        cv2.imwrite('./save/image_'+self.time_str+ '_' + str(self.wrap_no) + '.jpg', self.ic.cv_image)
         print('Saving parameters and the image are done')
-
 
     def step(self, no_of_wrap, center_t, r, l, advance, debug = False, execute=True, use_last_img=False):
         curve_path = self.pg.generate_nusadua(center_t, r, l, advance)
