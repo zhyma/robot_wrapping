@@ -76,7 +76,7 @@ class robot_wrapping():
         [self.adv_s, self.r_s, self.lp_s] = [-1.0, -1.0, -1.0] ## L prime, or L', 's' stand for stable result
         [self.adv,   self.r,   self.lp  ] = [-1.0, -1.0, -1.0]
         [self.adv_n, self.r_n, self.lp_n] = [-1.0, -1.0, -1.0] ## L prime, or L', 'n' stand for next to test
-        [self.last_adv_fb, self.last_len_fb] = [-10, -10]
+        [self.last_adv_fb, self.last_len_fb] = [2, 100]
 
         ## recover rod's information from the saved data
         self.rod = rod_finder(self.scene)
@@ -190,7 +190,7 @@ class robot_wrapping():
              ## start a new one with default parameters.
             ## three parameters to tune: advance, r and L'. L = 2*pi*r+L'
             [self.adv_n, self.r_n, self.lp_n] = [0.02, self.rod.info.r * 1.5, 0.06] ## meter
-            [self.last_adv_fb, self.last_len_fb] = [-10, -10]
+            [self.last_adv_fb, self.last_len_fb] = [2, 100]
         else:
             print("No such an option.")
             return
@@ -199,7 +199,7 @@ class robot_wrapping():
         
         ## let's do a few rounds
         with open("./save/log.txt", 'a') as file:
-            file.write("====new wraps: "+time_str+" @ "+str(self.wrap_no)+"====\n")
+            file.write("====new wraps: "+self.time_str+" @ "+str(self.wrap_no+1)+"====\n")
 
         self.wrap_success = False
 
@@ -220,7 +220,7 @@ class robot_wrapping():
         while self.wrap_success == False:
             [self.adv, self.r, self.lp] = [self.adv_n, self.r_n, self.lp_n]
             l = self.r*pi*2 + self.lp
-            print("Current wrap {}, @{}\nparameters are:\nadv: {:.1f}\nr: {:.1f}\nlen: {:.1f}".format(self.wrap_no, self.time_str, self.adv*1000, self.r*1000, self.lp*1000))
+            print("Current wrap {}, @{}\nparameters are:\nadv: {:.1f}\nr: {:.1f}\nlen: {:.1f}".format(self.wrap_no+1, self.time_str, self.adv*1000, self.r*1000, self.lp*1000))
             with open("./save/log.txt", 'a') as file:
                 file.write("adv: {:.1f}, r: {:.1f}, lp: {:.1f},".format(self.adv*1000, self.r*1000, self.lp*1000))
             result = self.step(self.wrap_no, t_wrapping, self.r, l, self.adv, debug = True, execute=execute, use_last_img=use_last_img)
@@ -302,7 +302,7 @@ class robot_wrapping():
             if self.last_adv_fb > 0:
                 # if (abs(adv_fb-last_adv_fb)/adv_fb > 0.1) or adv_fb > 0.5:
                 # if (abs(d_adv) > 0.003) or adv_fb > 0.5:
-                if (adv_fb > 1e-5) and (abs(adv_fb-self.last_adv_fb)/adv_fb > 0.05):
+                if (adv_fb > 1e-5) and (abs(adv_fb-self.last_adv_fb) > 0.05):
                     self.adv_n = self.adv - d_adv
                     print("Next self.adv to test is {}".format(self.adv_n))
                     param_updated = True
@@ -312,7 +312,7 @@ class robot_wrapping():
                 else:
                     print('The selection of advance becomes stable')
                     param_stable[1] = True
-                    if (adv_fb > 1e-5):
+                    if (adv_fb <= 1e-5):
                         param_updated = True
                     with open("./save/log.txt", 'a') as file:
                         file.write('adv becomes stable,')
@@ -324,8 +324,11 @@ class robot_wrapping():
                 ## second line: next to test
                 ## third  line: last feedback
                 ## forth  line: param stable? (1 true, -1 false)
+                print("param_updated: {}".format(param_updated))
                 if param_updated:
                     [self.adv_s, self.r_s, self.lp_s] = [self.adv, self.r, self.lp]
+
+                print("params are:\n{}, {}, {}\n{}, {}, {}\n{}, {}, {}\n".format(self.adv_s, self.r_s, self.lp_s, self.adv, self.r, self.lp, self.adv_n, self.r_n, self.lp_n))
 
                 file.write(str("{:.4f},{:.4f},{:.4f}\n".format(self.adv_s, self.r_s, self.lp_s)))
                 file.write(str("{:.4f},{:.4f},{:.4f}\n".format(self.adv_n, self.r_n, self.lp_n)))
@@ -510,6 +513,20 @@ class robot_wrapping():
         rospy.sleep(3)
         print('reset done')
 
+    def reset_left(self):
+        ##-------------------##
+        ## reset the robot
+        print("reset the robot's left hand pose")
+
+        self.gripper.l_open()
+        rospy.sleep(1)
+        self.j_ctrl.robot_default_l_low()
+
+        self.gripper.l_open()
+
+        rospy.sleep(3)
+        print('reset done')
+
 if __name__ == '__main__':
     run = True
     menu  = '=========================\n'
@@ -518,6 +535,7 @@ if __name__ == '__main__':
     menu += '3. Start a fresh new learning\n'
     menu += '4. Continue previous learning\n'
     menu += '5. Wrapping motion demo with current parameters\n'
+    menu += "6. Reset the robot's left arm pose\n"
     menu += '0. Exit\n'
     menu += 'Your input:'
 
@@ -529,7 +547,7 @@ if __name__ == '__main__':
     while run:
         choice = input(menu)
         
-        if choice in ['1', '2', '3', '4', '5']:
+        if choice in ['1', '2', '3', '4', '5', '6']:
             if choice == '1':
                 ## reset the robot
                 rw.reset()
@@ -555,6 +573,9 @@ if __name__ == '__main__':
                     param_filename = 'param.txt'
                     print('use the default param.txt file')
                 rw.wrapping('demo_current', param_filename)
+            elif choice == '6':
+                ## reset the robot
+                rw.reset_left()
 
         else:
             ## exit
