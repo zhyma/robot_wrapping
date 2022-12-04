@@ -199,7 +199,7 @@ class robot_wrapping():
         
         ## let's do a few rounds
         with open("./save/log.txt", 'a') as file:
-            file.write(",,,new wraps\n")
+            file.write("====new wraps: "+time_str+" @ "+str(self.wrap_no)+"====\n")
 
         self.wrap_success = False
 
@@ -220,9 +220,9 @@ class robot_wrapping():
         while self.wrap_success == False:
             [self.adv, self.r, self.lp] = [self.adv_n, self.r_n, self.lp_n]
             l = self.r*pi*2 + self.lp
-            print("Current wrap {}, @{}\nparameters are:\nadv: {:.3}\nr: {:.3}\nlen: {:.3}".format(self.wrap_no, self.time_str, self.adv, self.r, self.lp))
+            print("Current wrap {}, @{}\nparameters are:\nadv: {:.1f}\nr: {:.1f}\nlen: {:.1f}".format(self.wrap_no, self.time_str, self.adv*1000, self.r*1000, self.lp*1000))
             with open("./save/log.txt", 'a') as file:
-                file.write("{:.3},{:.3},{:.3},".format(self.adv, self.r, self.lp))
+                file.write("adv: {:.1f}, r: {:.1f}, lp: {:.1f},".format(self.adv*1000, self.r*1000, self.lp*1000))
             result = self.step(self.wrap_no, t_wrapping, self.r, l, self.adv, debug = True, execute=execute, use_last_img=use_last_img)
             if result < 0:
                 self.wrap_success = False
@@ -232,25 +232,27 @@ class robot_wrapping():
                     print("Next L' to test is {}".format(self.lp_n))
                     param_updated = True
                     with open("./save/log.txt", 'a') as file:
-                        file.write("No IK found. Reduce L'.,")
+                        file.write("No IK found. Reduce L'.\n")
                 else:
                     print('Safety distance between the gripper and the rod cannot be guaranteed!')
                     self.r_n = self.r - 0.005 ## try to reduce the r instead?
                     self.lp_n = 0.06
                     with open("./save/log.txt", 'a') as file:
-                        file.write("No IK found. Safety distance reached. Reduce r.,")
+                        file.write("No IK found. Safety distance reached. Reduce r.\n")
             else:
                 self.wrap_success = True
                 with open("./save/log.txt", 'a') as file:
-                    file.write("Done wrap,")
+                    file.write("Done wrap.\n")
                 print("***Do one wrap successfully***")
 
+        ## First need to manually confirm that the wrap is done successfully (no rope tangling the finger or other unexpected case).
+        ## failure case will not be recorded (neither parameters nor )
         if input_option in ['new_learning', 'continue_previous']:
             len_fb = check_len(self.ic.cv_image, self.rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
-            print("Extra length is: {}".format(len_fb))
+            print("Extra length is: {:.1f}".format(len_fb))
 
             adv_fb = check_adv(self.ic.cv_image, self.rod.info.box2d, self.rope.info.hue, self.rope.info.diameter)
-            print("Tested advnace is: {}, ".format(adv_fb))
+            print("Tested advnace is: {:.1f}%, ".format(adv_fb*100))
 
             wait_for_input = True
             while wait_for_input:
@@ -264,8 +266,8 @@ class robot_wrapping():
                     pass
 
             with open("./save/log.txt", 'a') as file:
-                file.write("len_fb is {},".format(len_fb))
-                file.write("adv_fb is {},".format(adv_fb))
+                file.write("len_fb is {:.1f},".format(len_fb))
+                file.write("adv_fb is {:.1f}%,".format(adv_fb*100))
 
             self.wrap_no += 1
 
@@ -276,14 +278,15 @@ class robot_wrapping():
             d_r =  0.001*(len_fb-self.rope.info.diameter*1.5) ## delta_r
             if self.last_len_fb > 0:
                 # if (((last_len_fb-len_fb)/len_fb > 0.1) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
-                if ((d_r > 0.002) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
+                # if ((d_r > 0.002) or len_fb > self.rope.info.diameter*1.5) and (len_fb-self.rope.info.diameter*1.5 > 0):
+                if d_r > 0:
                     self.r_n = self.r - d_r
                     self.lp_n = 0.06 ## having a new self.r, then start to search L' from beginning
                     print("Next self.r to test is {}".format(self.r_n))
                     param_updated = True
                     self.last_len_fb = len_fb
                     with open("./save/log.txt", 'a') as file:
-                        file.write("change r to {:.3},".format(self.r_n))
+                        file.write("change r to {:.1f},".format(self.r_n*1000))
                     
                 else:
                     print('The selection of r becomes stable')
@@ -294,19 +297,23 @@ class robot_wrapping():
                 self.last_len_fb = len_fb
             
             ## adv_new = adv - k1*(adv_feedback - threshold1)
-            d_adv = 0.04*(adv_fb - 0.2)
+            # d_adv = 0.04*(adv_fb - 0.2)
+            d_adv = 0.04*(adv_fb - 0.0)
             if self.last_adv_fb > 0:
                 # if (abs(adv_fb-last_adv_fb)/adv_fb > 0.1) or adv_fb > 0.5:
-                if (abs(d_adv) > 0.003) or adv_fb > 0.5:
+                # if (abs(d_adv) > 0.003) or adv_fb > 0.5:
+                if (adv_fb > 1e-5) and (abs(adv_fb-self.last_adv_fb)/adv_fb > 0.05):
                     self.adv_n = self.adv - d_adv
                     print("Next self.adv to test is {}".format(self.adv_n))
                     param_updated = True
                     self.last_adv_fb = adv_fb
                     with open("./save/log.txt", 'a') as file:
-                        file.write("change adv to {:.3},".format(self.adv_n))
+                        file.write("change adv to {:.1f},".format(self.adv_n*1000))
                 else:
                     print('The selection of advance becomes stable')
                     param_stable[1] = True
+                    if (adv_fb > 1e-5):
+                        param_updated = True
                     with open("./save/log.txt", 'a') as file:
                         file.write('adv becomes stable,')
             else:
@@ -330,16 +337,16 @@ class robot_wrapping():
                 file.write("\n")
 
             if param_stable[0] and param_stable[1]:
-                print("****Find the best parameters: adv: {:.4f}, r: {:.4f}, L': {:.4f}****".format(self.adv_s, self.r_s, self.lp_s))
+                print("****Find the best parameters: adv: {:.1f}, r: {:.1f}, L': {:.1f}****".format(self.adv_s*1000, self.r_s*1000, self.lp_s*1000))
                 print("====LEARNING END====")
 
         ## make a backup
         print('Backup current parameters...')
         with open('./save/param.txt', 'r') as file_in:
-            with open('./save/param_'+self.time_str + '_' + str(self.wrap_no) + '.txt', 'w') as file_backup:
+            with open('./save/param_'+self.time_str + '@wrap_' + str(self.wrap_no) + '.txt', 'w') as file_backup:
                 file_backup.write(file_in.read())
 
-        cv2.imwrite('./save/image_'+self.time_str+ '_' + str(self.wrap_no) + '.jpg', self.ic.cv_image)
+        cv2.imwrite('./save/image_'+self.time_str+ '@wrap_' + str(self.wrap_no) + '.jpg', self.ic.cv_image)
         print('Saving parameters and the image are done')
 
     def step(self, no_of_wrap, center_t, r, l, advance, debug = False, execute=True, use_last_img=False):
