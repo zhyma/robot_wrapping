@@ -136,6 +136,8 @@ class robot_wrapping():
         return q_knots
 
     def rope_holding(self, z):
+        self.gripper.r_open()
+        rospy.sleep(1)
         ## go to the rope's fixed end
 
         ## by given the expected z=0.12 value
@@ -553,7 +555,10 @@ if __name__ == '__main__':
                 rw.reset()
             elif choice == '2':
                 ## grasping the fixed end
-                rw.rope_holding(0.13)
+                z = input("z value (default 0.13)")
+                if len(z)==0:
+                    z = 0.13
+                rw.rope_holding(float(z))
             elif choice == '3':
                 ## start a new learning, tuning parameters automatically
                 [os.remove('./debug/'+file) for file in os.listdir('./debug') if file.endswith('.jpg')]

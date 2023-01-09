@@ -495,7 +495,7 @@ class robot_winding():
             self.j_ctrl.robot_setjoint(0, js_values[0])
             rospy.sleep(1.2)
             self.j_ctrl.robot_setjoint(0, js_values[1])
-            rospy.sleep(0.5)
+            rospy.sleep(1)
             ## grabbing the rope
             self.gripper.l_close()
             rospy.sleep(0.8)
@@ -511,7 +511,7 @@ class robot_winding():
             # self.marker.show(pt_2)
             self.j_ctrl.exec(0, j_traj_2, 0.2)
 
-            rospy.sleep(1)
+            rospy.sleep(2)
             self.gripper.l_open()
 
             # print('move out from the grasping pose')
