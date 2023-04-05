@@ -361,7 +361,7 @@ class robot_wrapping():
 
         ## based on the frame of link_7 (not the frame of the rod)
         ## z pointing toward right
-        finger_offset = [0, 0, -0.10]
+        finger_offset = [0, 0, -0.08]
 
 
         ## the arbitary value (but cannot be too arbitary) of the starting value of the last/wrist joint

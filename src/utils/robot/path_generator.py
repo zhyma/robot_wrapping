@@ -32,7 +32,7 @@ class path_generator():
         ## 0.100: from the grasping point to the gripper base
         t_ft2gb = np.array([[1, 0, 0, 0],\
                             [0, 1, 0, 0],\
-                            # [0, 0, 1, 0.125],\
+                            # [0, 0, 1, 0.05],\
                             [0, 0, 1, 0.10],\
                             [0, 0, 0, 1]])
         t_gb2ft = np.linalg.inv(t_ft2gb)
