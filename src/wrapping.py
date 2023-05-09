@@ -504,8 +504,9 @@ class robot_wrapping():
         rospy.sleep(1)
         self.gripper.r_open()
         rospy.sleep(1)
-        self.j_ctrl.robot_default_l_low()
-        self.j_ctrl.robot_default_r_low()
+        # self.j_ctrl.robot_default_l_low()
+        # self.j_ctrl.robot_default_r_low()
+        self.j_ctrl.robot_reset()
 
         self.gripper.l_open()
         self.gripper.r_open()
