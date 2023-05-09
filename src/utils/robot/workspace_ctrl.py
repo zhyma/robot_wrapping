@@ -120,7 +120,11 @@ class move_yumi():
     def ik_with_restrict(self, group, pose_goal, joint_7_value):
         stepback_pose = step_back(group, pose_goal, joint_7_value)
 
-        seed_state = self.ctrl_group[group].get_current_joint_values()
+        seed_state = self.ctrl_group.get_current_joint_values()
+        if group == 0:
+            seed_state = seed_state[0:7]
+        else:
+            seed_state = seed_state[7:]
         x = stepback_pose.position.x
         y = stepback_pose.position.y
         z = stepback_pose.position.z

@@ -56,9 +56,7 @@ class robot_wrapping():
         self.robot = moveit_commander.RobotCommander()
         self.ws_tf = workspace_tf()
 
-        self.ctrl_group = []
-        self.ctrl_group.append(moveit_commander.MoveGroupCommander('left_arm'))
-        self.ctrl_group.append(moveit_commander.MoveGroupCommander('right_arm'))
+        self.ctrl_group = moveit_commander.MoveGroupCommander('both_arms')
         self.j_ctrl = joint_ctrl(self.ctrl_group)
         ## initialzing the yumi motion planner
         self.yumi = move_yumi(self.robot, self.scene, self.ctrl_group, self.j_ctrl)

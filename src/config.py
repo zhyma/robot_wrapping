@@ -15,7 +15,7 @@ from utils.vision.rgb_camera import image_converter
 from utils.robot.rod_finder      import rod_finder
 from utils.vision.rope_detect    import rope_detect, rope_info
 
-from winding import robot_winding
+from wrapping import robot_wrapping
 
 # from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 
@@ -87,7 +87,7 @@ if __name__ == '__main__':
                 ## init rope
                 rope_init()
             else:
-                rw = robot_winding()
+                rw = robot_wrapping()
                 if choice == '1':
                     ## reset the robot
                     rw.reset()
