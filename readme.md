@@ -7,9 +7,9 @@ Need to setup:
 	- `pip3 install arrow termcolor igraph scikit-image pytorch-lightning==1.7.1 torch==1.8.2 torchvision==0.9.2 torchaudio==0.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cpu`
 
 To run the package
-  - Use `roslaunch rs2pcl demo.launch`
+  - Use `roslaunch rope_wrapping demo.launch`
   - Run `python config.py` to get the rod and the rope's estimation
-  - Run `python winding.py` to start wrapping process.
+  - Run `python wrapping.py` to start wrapping process.
 
 Saved file format:
   - Rod's information is saved to `rod_info.pickle`.
