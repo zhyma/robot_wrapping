@@ -50,16 +50,30 @@ class rope_detect:
         # self.mask = None
         self.masked_img = None
 
+
+        ## if the sequence of corner is not sure...        
+        l = []
+        for i in range(3):
+            x0_p = rod_info.box2d[i][0]
+            x1_p = rod_info.box2d[i+1][0]
+            y0_p = rod_info.box2d[i][1]
+            y1_p = rod_info.box2d[i+1][1]
+            l.append(sqrt((x0_p-x1_p)**2+(y0_p-y1_p)**2))
+
+        l_pixel = max(l)
+        self.scale = rod_info.l/l_pixel
+
+        ## Seems that OpenCV have different define for corners according to its' version
         ## box2d:
         ## 3----4
         ## |    |
         ## 2----1
-        x3_p = rod_info.box2d[2][0]
-        x4_p = rod_info.box2d[3][0]
-        y3_p = rod_info.box2d[2][1]
-        y4_p = rod_info.box2d[3][1]
-        l_pixel = sqrt((x3_p-x4_p)**2+(y3_p-y4_p)**2)
-        self.scale = rod_info.l/l_pixel
+        # x3_p = rod_info.box2d[2][0]
+        # x4_p = rod_info.box2d[3][0]
+        # y3_p = rod_info.box2d[2][1]
+        # y4_p = rod_info.box2d[3][1]
+        # l_pixel = sqrt((x3_p-x4_p)**2+(y3_p-y4_p)**2)
+        # self.scale = rod_info.l/l_pixel
         self.bridge = CvBridge()
 
         self.info = None
@@ -262,7 +276,7 @@ class rope_detect:
         ## estimate distance, actual, measured in meters
         dy = dx_p * self.scale
 
-        self.masked_img = cv2.circle(self.masked_img, (gp[0], gp[1]), radius=5, color=(0, 0, 255), thickness=-1)
+        self.masked_img = cv2.circle(self.masked_img, (gp[0], gp[1]), radius=10, color=(0, 0, 255), thickness=-1)
         self.pub.publish(self.bridge.cv2_to_imgmsg(self.masked_img, encoding='passthrough'))
 
         if end==1:
